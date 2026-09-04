@@ -1,0 +1,48 @@
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build output (prebuild 산출물 — 커밋하지 않는다)
+ios/
+android/
+
+# 서명·자격증명 (EAS 서버 관리 방식을 쓴다)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documents & scripts
+*.pptx
+*.ppt
+*.docx
+*.xlsx
+*.md
+!README.md
+*.py
+
+# Claude Code local config
+.claude/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
