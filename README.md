@@ -23,6 +23,36 @@
 웹에서는 스크린샷을 PC로 옮겨야 했지만, 앱에서는 사진 앱의 최근 스크린샷을
 바로 집어올 수 있습니다.
 
+## 개발 진행 상황
+
+`▰▱▱▱▱▱▱▱▱` **1 / 9 완료** — 기반 구축을 마치고 인증 단계에 들어갑니다.
+
+| 단계 | 내용 | 상태 |
+|:---:|------|:---:|
+| **M1** | 저장소 · 기반 구축 (공유 코드 · 테마 · 폰트 · Expo 부팅) | ✅ **완료** |
+| **M2** | 인증 (Firebase + AsyncStorage · 이메일 · Google) | 🚧 **진행 중** |
+| M3 | API 연동 계층 (클라이언트 통합 · 타임아웃 · 재시도) | 🔲 예정 |
+| M4 | 내비게이션 + 대시보드 · 분석 기록 | 🔲 예정 |
+| M5 | AI 분석 (사진 선택 · 압축 · 결과 · 코치 채팅) | 🔲 예정 |
+| M6 | 정원 (식물 · 동물 · 제스처 · 햅틱) | 🔲 예정 |
+| M7 | 목표 · 배지 · 커뮤니티 | 🔲 예정 |
+| M8 | 알림 + Apple 로그인 | 🔲 예정 |
+| M9 | QA · TestFlight 배포 | 🔲 예정 |
+| M10 | iOS 앱 차단 (FamilyControls) | ⏸️ 보류 |
+
+
+<details>
+<summary><b>M1 — 저장소 · 기반 구축</b> (2026-09-05 완료)</summary>
+
+- Expo SDK 57 (RN 0.86 / React 19.2) · expo-router · TypeScript strict
+- 디자인 토큰(`src/theme.ts`) + 다크/라이트 테마 컨텍스트 — 웹과 같은 색 3개 체계
+- 스포카 한 산스 네오 3종 런타임 로드 (Expo Go에서도 동일하게 적용되도록)
+- 웹 저장소와의 공유 코드 드리프트 감지 (`scripts/sync-shared.mjs`)
+- 스타일 방식 확정 — **토큰 + StyleSheet** (NativeWind 미도입)
+- 검증 3층 통과 — RN Web(Playwright) · Android 에뮬레이터(adb) · **아이폰 Expo Go 실기기**
+
+</details>
+
 ## 저장소 구성
 
 | 저장소 | 역할 |
@@ -52,6 +82,9 @@ npm install
 npx expo start           # QR 스캔 → Expo Go
 npx expo start --android # Android 에뮬레이터
 npx expo start --web     # 브라우저 (레이아웃 확인용)
+
+npm run verify:M1        # 회귀 검증 — 웹(Playwright) + 안드로이드 에뮬레이터(adb)
+npm run sync-shared      # 웹 저장소와 공유 코드 비교
 ```
 
 **요구 사항**: Node.js 22 LTS 이상 (개발 PC 기준 v24.19.0)
