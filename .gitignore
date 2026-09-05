@@ -8,6 +8,10 @@ node_modules/
 
 # Expo
 .expo/
+
+# 검증 산출물 (verify-M*.mjs 스크린샷)
+.verify/
+
 dist/
 web-build/
 expo-env.d.ts

@@ -6,9 +6,9 @@
 
 [Offlo 웹](https://github.com/DayGoProject/Offlo2)의 모바일 클라이언트입니다.
 
-![Expo](https://img.shields.io/badge/Expo-SDK_56-000020?style=flat-square&logo=expo)
-![React Native](https://img.shields.io/badge/React_Native-0.85-61DAFB?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)
+![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?style=flat-square&logo=expo)
+![React Native](https://img.shields.io/badge/React_Native-0.86-61DAFB?style=flat-square&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=flat-square&logo=typescript)
 ![iOS](https://img.shields.io/badge/iOS-15.1+-000000?style=flat-square&logo=apple)
 
 </div>
@@ -54,7 +54,7 @@ npx expo start --android # Android 에뮬레이터
 npx expo start --web     # 브라우저 (레이아웃 확인용)
 ```
 
-**요구 사항**: Node.js 22 LTS (Expo SDK 56은 v20.19.4 이상 필요)
+**요구 사항**: Node.js 22 LTS 이상 (개발 PC 기준 v24.19.0)
 
 ## 보안
 

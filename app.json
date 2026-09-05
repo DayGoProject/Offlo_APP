@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Offlo",
+    "slug": "offlo-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "offlo",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.daygoproject.offlo",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "스크린타임 스크린샷을 선택해 AI 분석에 사용합니다. 이미지는 저장되지 않고 분석 후 즉시 폐기됩니다.",
+        "NSCameraUsageDescription": "스크린타임 화면을 촬영해 AI 분석에 사용합니다. 이미지는 저장되지 않고 분석 후 즉시 폐기됩니다."
+      }
+    },
+    "android": {
+      "package": "com.daygoproject.offlo",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0F",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0F",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SpoqaHanSansNeo-Regular.ttf",
+            "./assets/fonts/SpoqaHanSansNeo-Medium.ttf",
+            "./assets/fonts/SpoqaHanSansNeo-Bold.ttf"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
