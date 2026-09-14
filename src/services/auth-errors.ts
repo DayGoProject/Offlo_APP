@@ -2,7 +2,7 @@
  * 로그인 에러 → 한국어 안내. 웹 `services/auth.ts`의 getAuthErrorMessage에서
  * 이메일 계열 코드를 뺀 것 + 네이티브 Google 로그인 코드.
  */
-import { ApiError } from "@/services/api";
+import { ApiError } from "@/services/api-client";
 
 /** Firebase·Google 코드가 아닌, 앱 로그인 절차가 직접 던지는 사유 */
 export type AuthFlowCode =
