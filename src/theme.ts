@@ -5,7 +5,16 @@
  * 새 색을 추가하지 않는다 — 필요하면 투명도를 조절한다.
  */
 
+export const BASE = "#0A0A0F";
 export const BRAND = "#3DDB87";
+export const WHITE = "#FFFFFF";
+
+/** 위험 표시 (에러·탈퇴·삭제) — 웹 `--danger` 계열. 팔레트 3색 외 유일한 예외다 */
+const DANGER = {
+  danger: "#FF5656",
+  dangerSoft: "rgba(255, 86, 86, 0.10)",
+  dangerLine: "rgba(255, 86, 86, 0.24)",
+};
 
 export interface ThemeColors {
   scoreTrack: string;
@@ -29,6 +38,9 @@ export interface ThemeColors {
   textGhost: string;
   gridLine: string;
   brand: string;
+  danger: string;
+  dangerSoft: string;
+  dangerLine: string;
 }
 
 export const light: ThemeColors = {
@@ -53,6 +65,7 @@ export const light: ThemeColors = {
   textGhost: "rgba(0, 0, 0, 0.18)",
   gridLine: "rgba(0, 0, 0, 0.04)",
   brand: BRAND,
+  ...DANGER,
 };
 
 export const dark: ThemeColors = {
@@ -77,6 +90,7 @@ export const dark: ThemeColors = {
   textGhost: "rgba(255, 255, 255, 0.18)",
   gridLine: "rgba(255, 255, 255, 0.015)",
   brand: BRAND,
+  ...DANGER,
 };
 
 export const themes = { light, dark } as const;
@@ -103,7 +117,7 @@ export const shadowCard = {
   },
 } as const;
 
-/** 폰트 — assets/fonts 의 OTF를 expo-font로 등록한 뒤 이 이름으로 참조한다 */
+/** 폰트 — assets/fonts 의 TTF를 useFonts로 등록한 뒤 이 이름으로 참조한다 */
 export const fonts = {
   regular: "SpoqaHanSansNeo-Regular",
   medium: "SpoqaHanSansNeo-Medium",

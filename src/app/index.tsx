@@ -1,185 +1,90 @@
 /**
- * M1 기반 점검 화면.
- *
- * 이 화면의 목적은 하나다 — 폰트·색 토큰·공유 코드·테마 전환이 실기기에서
- * 실제로 동작하는지 눈으로 확인하는 것. M4에서 대시보드로 대체된다.
+ * M2 홈 — 로그인 상태가 유지되는지 확인하는 자리. M4에서 대시보드로 대체된다.
  */
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Link } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BRAND, fonts, shadowCard, type ThemeColors } from "@/theme";
-import { useTheme, type ThemePref } from "@/theme-context";
-import { fmt } from "@/shared/format";
-import { ALL_BADGES } from "@/shared/badge-utils";
-import {
-  getAnimalEmoji,
-  getAnimalStage,
-  getPlantLevel,
-  nextPlantLevel,
-} from "@/shared/garden-utils";
+import { useAuth } from "@/auth-context";
+import { fonts, shadowCard } from "@/theme";
+import { useTheme } from "@/theme-context";
 
-/** 공유 코드가 웹과 같은 답을 내는지 보기 위한 표본값 */
-const SAMPLE_MINUTES = 1450;
-const SAMPLE_STREAK = 12;
-
-const THEME_OPTIONS: { pref: ThemePref; label: string }[] = [
-  { pref: "system", label: "시스템" },
-  { pref: "light", label: "라이트" },
-  { pref: "dark", label: "다크" },
-];
-
-export default function FoundationScreen() {
-  const { colors: c, scheme, pref, setPref } = useTheme();
+export default function HomeScreen() {
+  const { colors: c, scheme } = useTheme();
+  const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const [signingOut, setSigningOut] = useState(false);
 
-  const plant = getPlantLevel(SAMPLE_MINUTES);
-  const next = nextPlantLevel(plant);
-  const stage = getAnimalStage(SAMPLE_STREAK);
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      // 끝나면 라우트 가드가 로그인 화면으로 넘긴다
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
+  const name = user?.displayName ?? user?.email ?? "";
 
   return (
-    <ScrollView
-      testID="screen"
-      style={{ backgroundColor: c.bgPage }}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 40 },
+    <View
+      testID="home-screen"
+      style={[
+        styles.screen,
+        { backgroundColor: c.bgPage, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24 },
       ]}
     >
       <Text style={[styles.brandMark, { color: c.brand }]}>Offlo</Text>
-      <Text style={[styles.caption, { color: c.textMuted }]}>M1 · 기반 점검</Text>
+      <Text style={[styles.caption, { color: c.textMuted }]}>M2 · 로그인됨</Text>
 
-      <Card colors={c} scheme={scheme} title="폰트">
-        <Text style={[styles.sample, { fontFamily: fonts.regular, color: c.textPrimary }]}>
-          스포카 한 산스 네오 Regular 0123
+      <View
+        style={[styles.card, shadowCard[scheme], { backgroundColor: c.bgCard, borderColor: c.borderCard }]}
+      >
+        <Text testID="home-user-name" style={[styles.greeting, { color: c.textPrimary }]}>
+          {name}님, 환영합니다
         </Text>
-        <Text style={[styles.sample, { fontFamily: fonts.medium, color: c.textPrimary }]}>
-          스포카 한 산스 네오 Medium 0123
-        </Text>
-        <Text style={[styles.sample, { fontFamily: fonts.bold, color: c.textPrimary }]}>
-          스포카 한 산스 네오 Bold 0123
-        </Text>
+        {user?.email ? (
+          <Text style={[styles.email, { color: c.textSecondary }]}>{user.email}</Text>
+        ) : null}
         <Text style={[styles.note, { color: c.textFaint }]}>
-          RN은 굵기가 아니라 파일명으로 고른다 — 400·500·700 3종만 쓴다.
+          앱을 완전히 종료했다가 다시 열어도 이 화면이 보이면 로그인 유지가 동작하는 것입니다.
         </Text>
-      </Card>
+      </View>
 
-      <Card colors={c} scheme={scheme} title="색">
-        <View style={styles.swatchRow}>
-          <Swatch colors={c} color="#0A0A0F" label="base" />
-          <Swatch colors={c} color={BRAND} label="brand" />
-          <Swatch colors={c} color="#FFFFFF" label="text" />
-        </View>
-        <Text style={[styles.note, { color: c.textFaint }]}>
-          색은 이 3개뿐이다. 중간 색조는 전부 투명도로 만든다.
+      <Link href="/foundation" asChild>
+        <Pressable
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            { borderColor: c.borderStrong, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Text style={[styles.secondaryLabel, { color: c.textPrimarySoft }]}>기반 점검 화면</Text>
+        </Pressable>
+      </Link>
+
+      <Pressable
+        testID="signout-button"
+        accessibilityRole="button"
+        disabled={signingOut}
+        onPress={handleSignOut}
+        style={({ pressed }) => [
+          styles.secondaryButton,
+          { borderColor: c.dangerLine, opacity: signingOut ? 0.6 : pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Text style={[styles.secondaryLabel, { color: c.danger }]}>
+          {signingOut ? "로그아웃 중..." : "로그아웃"}
         </Text>
-      </Card>
-
-      <Card colors={c} scheme={scheme} title="공유 코드">
-        <Row colors={c} label="누적 절약" value={fmt(SAMPLE_MINUTES)} />
-        <Row
-          colors={c}
-          label="식물 레벨"
-          value={`${plant.emoji} Lv.${plant.level} ${plant.name}`}
-        />
-        <Row
-          colors={c}
-          label="다음 레벨까지"
-          value={next ? `${fmt(next.minMinutes - SAMPLE_MINUTES)} 남음` : "최고 레벨"}
-        />
-        <Row
-          colors={c}
-          label={`연속 기록 ${SAMPLE_STREAK}일`}
-          value={`${getAnimalEmoji("cat", SAMPLE_STREAK)} ${stage.name}`}
-        />
-        <Row colors={c} label="배지" value={`${ALL_BADGES.length}종`} />
-        <Text style={[styles.note, { color: c.textFaint }]}>
-          웹 `web/src/lib`의 복사본이다. 값이 웹과 다르면 sync-shared가 잡는다.
-        </Text>
-      </Card>
-
-      <Card colors={c} scheme={scheme} title="테마">
-        <View style={styles.segment}>
-          {THEME_OPTIONS.map((opt) => {
-            const active = pref === opt.pref;
-            return (
-              <Pressable
-                key={opt.pref}
-                onPress={() => setPref(opt.pref)}
-                style={({ pressed }) => [
-                  styles.segmentItem,
-                  {
-                    backgroundColor: active ? c.brand : c.bgSubtle,
-                    borderColor: active ? c.brand : c.borderCard,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    { color: active ? "#0A0A0F" : c.textSecondary },
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={[styles.note, { color: c.textFaint }]}>
-          지금 적용된 스킴: {scheme === "dark" ? "다크" : "라이트"}
-        </Text>
-      </Card>
-    </ScrollView>
-  );
-}
-
-function Card({
-  colors: c,
-  scheme,
-  title,
-  children,
-}: {
-  colors: ThemeColors;
-  scheme: "light" | "dark";
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View
-      style={[
-        styles.card,
-        shadowCard[scheme],
-        { backgroundColor: c.bgCard, borderColor: c.borderCard },
-      ]}
-    >
-      <Text style={[styles.cardTitle, { color: c.textMuted }]}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Row({ colors: c, label, value }: { colors: ThemeColors; label: string; value: string }) {
-  return (
-    <View style={[styles.row, { borderTopColor: c.borderStrip }]}>
-      <Text style={[styles.rowLabel, { color: c.textSecondary }]}>{label}</Text>
-      <Text style={[styles.rowValue, { color: c.textPrimary }]}>{value}</Text>
-    </View>
-  );
-}
-
-function Swatch({ colors: c, color, label }: { colors: ThemeColors; color: string; label: string }) {
-  return (
-    <View style={styles.swatch}>
-      <View style={[styles.swatchChip, { backgroundColor: color, borderColor: c.borderStrong }]} />
-      <Text style={[styles.swatchLabel, { color: c.textSecondary }]}>{label}</Text>
-      <Text style={[styles.swatchHex, { color: c.textFaint }]}>{color}</Text>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  screen: {
+    flex: 1,
     paddingHorizontal: 20,
     gap: 16,
   },
@@ -197,77 +102,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 20,
     padding: 20,
-    gap: 10,
+    gap: 6,
   },
-  cardTitle: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 2,
+  greeting: {
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
-  sample: {
-    fontSize: 16,
+  email: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
   },
   note: {
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: 8,
   },
-  swatchRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  swatch: {
-    flex: 1,
-    gap: 6,
-  },
-  swatchChip: {
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  swatchLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-  },
-  swatchHex: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    paddingVertical: 10,
-    gap: 12,
-  },
-  rowLabel: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-  },
-  rowValue: {
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    flexShrink: 1,
-    textAlign: "right",
-  },
-  segment: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  segmentItem: {
-    flex: 1,
-    minHeight: 44,
+  secondaryButton: {
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
   },
-  segmentLabel: {
+  secondaryLabel: {
     fontFamily: fonts.medium,
-    fontSize: 14,
+    fontSize: 15,
   },
 });

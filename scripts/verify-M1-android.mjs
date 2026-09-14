@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const PORT = 8081;
+// M2부터 홈은 로그인 가드 안이다 — 기반 점검 화면은 가드 밖 /foundation 에 있다.
+const EXPO_GO_URL = `exp://127.0.0.1:${PORT}/--/foundation`;
 const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
@@ -65,22 +67,27 @@ const serverUp = async () => {
 let devServer = null;
 if (await serverUp()) {
   console.log(`\n이미 떠 있는 개발 서버를 씁니다: http://localhost:${PORT}`);
-  // 에뮬레이터의 localhost를 PC로 넘겨 LAN IP에 의존하지 않게 한다.
-  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]);
-  // 이미 떠 있으면 am start가 앱을 다시 로드하지 않는다 — 항상 껐다 켠다.
-  adb(["shell", "am", "force-stop", "host.exp.exponent"]);
-  await wait(1000);
-  adb(["logcat", "-c"]);
-  adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", `exp://127.0.0.1:${PORT}`]);
 } else {
-  console.log(`\n개발 서버를 띄우고 Expo Go로 엽니다 …`);
-  devServer = spawn("npx", ["expo", "start", "--android", "--port", String(PORT)], {
+  // expo-dev-client가 들어간 뒤로 `--android`는 Expo Go가 아니라 dev build를 연다.
+  // 서버만 띄우고 Expo Go는 아래에서 딥링크로 직접 연다.
+  console.log(`\n개발 서버를 띄웁니다 …`);
+  devServer = spawn("npx", ["expo", "start", "--port", String(PORT)], {
     cwd: ROOT,
     env: { ...process.env, BROWSER: "none", EXPO_NO_TELEMETRY: "1" },
     stdio: "ignore",
     shell: true,
   });
+  for (let i = 0; i < 90 && !(await serverUp()); i++) await wait(2000);
 }
+
+// 에뮬레이터의 localhost를 PC로 넘겨 LAN IP에 의존하지 않게 한다.
+adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]);
+// 이미 떠 있으면 am start가 앱을 다시 로드하지 않는다 — 항상 껐다 켠다.
+adb(["shell", "am", "force-stop", "host.exp.exponent"]);
+await wait(1000);
+adb(["logcat", "-c"]);
+// dev build가 같은 기기에 깔려 있어도 Expo Go로 열리게 패키지를 못 박는다.
+adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", EXPO_GO_URL, "-p", "host.exp.exponent"]);
 
 function stopServer() {
   if (!devServer) return;

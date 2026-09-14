@@ -1,18 +1,18 @@
 /**
- * M1 검증 ① — RN Web + Playwright (에이전트 자동 실행용)
+ * M2 검증 ① — RN Web + Playwright (에이전트 자동 실행용)
  *
- *   node scripts/verify-M1-web.mjs
+ *   node scripts/verify-M2-web.mjs
  *
  * 확인 항목
- *   0. 공유 코드가 웹 레포와 동일한가 (매 검증의 첫 줄 — .claude/rules/mobile.md)
- *   1. 아이폰 뷰포트(390×844)에서 화면이 뜨는가
- *   2. 브랜드 색(#3DDB87)과 스포카 한 산스 네오가 실제로 적용됐는가
- *   3. 가로 넘침이 없는가
- *   4. 테마 오버라이드(다크 ↔ 라이트)가 동작하는가
- *   5. 콘솔 에러 · 미처리 rejection이 0인가
+ *   0. 공유 코드가 웹 레포와 동일한가 (매 검증의 첫 줄)
+ *   1. 비로그인으로 / 에 들어가면 로그인 화면으로 막힌다 (라우트 가드)
+ *   2. 로그인 화면 — 브랜드 색 · Google 버튼 · 터치 타깃 44pt 이상 · 가로 넘침 없음
+ *   3. 가드 밖 /foundation 은 로그인 없이 열린다 (M1 회귀 경로)
+ *   4. 테마 오버라이드가 새로고침 뒤에도 남는다 (AsyncStorage 영속화)
+ *   5. 콘솔 에러 · 미처리 rejection 0
  *
- * iOS 시뮬레이터를 쓸 수 없는 환경이라(Windows) 이 층이 가장 빠른 회귀 그물이다.
- * 네이티브 고유 항목(햅틱·권한·알림)은 ② 안드로이드 에뮬레이터, ③ 아이폰 Expo Go에서 본다.
+ * 실제 Google 로그인은 자동화하지 않는다 — 계정 선택은 사람이 한다.
+ * 로그인 유지 · 미가입자 차단은 ② 안드로이드 dev build(verify-M2-android.mjs)에서 본다.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync } from "node:fs";
@@ -25,11 +25,9 @@ import { chromium } from "playwright-core";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-// M2부터 홈은 로그인 가드 안이다 — 기반 점검 화면은 가드 밖 /foundation 에 있다.
-const SCREEN_URL = `${URL}/foundation`;
 const BRAND_RGB = "rgb(61, 219, 135)";
-const DARK_BG = "rgb(10, 10, 15)";
 const LIGHT_BG = "rgb(244, 246, 244)";
+const MIN_TOUCH = 44;
 
 const failures = [];
 const check = (ok, label, detail = "") => {
@@ -118,68 +116,57 @@ page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
 try {
-  await page.goto(SCREEN_URL, { waitUntil: "networkidle", timeout: 120_000 });
+  /* 1. 라우트 가드 — 비로그인으로 홈 진입 */
+  await page.goto(`${URL}/`, { waitUntil: "networkidle", timeout: 120_000 });
+  await page.getByTestId("login-screen").waitFor({ state: "visible", timeout: 60_000 });
+  const path = new globalThis.URL(page.url()).pathname;
+  check(path === "/login", "비로그인 → 로그인 화면으로 막힘", path);
+  check((await page.getByTestId("home-screen").count()) === 0, "홈 화면이 그려지지 않음");
 
-  const mark = page.getByText("Offlo", { exact: true }).first();
-  await mark.waitFor({ state: "visible", timeout: 60_000 });
-  check(true, "화면 렌더 (390×844)");
+  /* 2. 로그인 화면 */
+  const markColor = await page
+    .getByText("Offlo", { exact: true })
+    .first()
+    .evaluate((el) => getComputedStyle(el).color);
+  check(markColor === BRAND_RGB, "브랜드 색 적용", markColor);
 
-  /* 2. 색·폰트가 실제 계산된 스타일에 반영됐는가 */
-  const markStyle = await mark.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { color: s.color, fontFamily: s.fontFamily };
-  });
-  check(markStyle.color === BRAND_RGB, "브랜드 색 적용", markStyle.color);
-  check(
-    markStyle.fontFamily.includes("SpoqaHanSansNeo-Bold"),
-    "폰트 패밀리 지정",
-    markStyle.fontFamily,
-  );
+  const button = page.getByTestId("google-login-button");
+  const label = await button.innerText();
+  check(label.includes("Google로 계속하기"), "Google 버튼 문구", label.trim());
+  const box = await button.boundingBox();
+  check(Boolean(box && box.height >= MIN_TOUCH), `터치 타깃 ${MIN_TOUCH}pt 이상`, `${box?.height ?? 0}px`);
 
-  const fontLoaded = await page.evaluate(async () => {
-    await document.fonts.ready;
-    return ["Regular", "Medium", "Bold"].every((w) =>
-      document.fonts.check(`16px "SpoqaHanSansNeo-${w}"`),
-    );
-  });
-  check(fontLoaded, "스포카 한 산스 네오 3종 로드");
-
-  /* 3. 가로 넘침 */
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
   }));
-  check(
-    overflow.scrollWidth <= overflow.innerWidth,
-    "가로 넘침 없음",
-    `${overflow.scrollWidth} / ${overflow.innerWidth}`,
-  );
+  check(overflow.scrollWidth <= overflow.innerWidth, "가로 넘침 없음", `${overflow.scrollWidth} / ${overflow.innerWidth}`);
+  await page.screenshot({ path: join(OUT_DIR, "M2-login.png") });
 
-  /* 4. 테마 — 다크 기본 → 라이트 오버라이드 */
-  const screenBg = () =>
-    page.evaluate(
-      () => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor,
-    );
+  /* 3. 가드 밖 경로 */
+  await page.goto(`${URL}/foundation`, { waitUntil: "networkidle", timeout: 60_000 });
+  const screen = page.getByTestId("screen");
+  await screen.waitFor({ state: "visible", timeout: 30_000 });
+  check(true, "/foundation 은 로그인 없이 열림");
 
-  const darkBg = await screenBg();
-  check(darkBg === DARK_BG, "기본 스킴 = 다크", darkBg);
-  await page.screenshot({ path: join(OUT_DIR, "M1-dark.png") });
-
+  /* 4. 테마 영속화 — 라이트로 바꾸고 새로고침 */
+  const screenBg = () => screen.evaluate((el) => getComputedStyle(el).backgroundColor);
   await page.getByText("라이트", { exact: true }).click();
   await page.waitForFunction(
-    (light) =>
-      getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor === light,
+    (light) => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor === light,
     LIGHT_BG,
     { timeout: 10_000 },
   );
-  check(true, "테마 오버라이드 (다크 → 라이트)");
-  await page.screenshot({ path: join(OUT_DIR, "M1-light.png") });
+  await page.reload({ waitUntil: "networkidle" });
+  await screen.waitFor({ state: "visible", timeout: 30_000 });
+  const bgAfterReload = await screenBg();
+  check(bgAfterReload === LIGHT_BG, "테마 오버라이드가 새로고침 뒤에도 유지", bgAfterReload);
 
   /* 5. 콘솔 */
   check(consoleErrors.length === 0, "콘솔 에러 0", consoleErrors.join(" | ").slice(0, 300));
 } catch (err) {
   check(false, "검증 중 예외", String(err).split("\n")[0]);
-  await page.screenshot({ path: join(OUT_DIR, "M1-failure.png") }).catch(() => {});
+  await page.screenshot({ path: join(OUT_DIR, "M2-web-failure.png") }).catch(() => {});
 } finally {
   await browser.close();
   stopServer();
@@ -187,7 +174,7 @@ try {
 
 console.log(`\n스크린샷: ${OUT_DIR}`);
 if (failures.length) {
-  console.error(`\nM1 검증 실패 ${failures.length}건: ${failures.join(", ")}`);
+  console.error(`\nM2 웹 검증 실패 ${failures.length}건: ${failures.join(", ")}`);
   process.exit(1);
 }
-console.log("\nM1 웹 검증을 통과했습니다.");
+console.log("\nM2 웹 검증을 통과했습니다.");

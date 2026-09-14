@@ -4,6 +4,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 
+import { AuthProvider, useAuth } from "@/auth-context";
 import { fonts } from "@/theme";
 import { ThemeProvider, useTheme } from "@/theme-context";
 
@@ -20,22 +21,29 @@ export default function RootLayout() {
     [fonts.bold]: require("../../assets/fonts/SpoqaHanSansNeo-Bold.ttf"),
   });
 
-  useEffect(() => {
-    // 폰트 로드에 실패해도 스플래시에 갇히지 않게 한다 (시스템 폰트로 뜬다).
-    if (loaded || error) SplashScreen.hideAsync().catch(() => {});
-  }, [loaded, error]);
-
+  // 폰트 로드에 실패해도 멈추지 않는다 (시스템 폰트로 뜬다).
   if (!loaded && !error) return null;
 
   return (
     <ThemeProvider>
-      <RootStack />
+      <AuthProvider>
+        <RootStack />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
 
 function RootStack() {
-  const { scheme, colors } = useTheme();
+  const { scheme, colors, hydrated } = useTheme();
+  const { user, loading } = useAuth();
+  const ready = hydrated && !loading;
+
+  useEffect(() => {
+    // 저장된 테마와 로그인 상태를 다 읽은 뒤에 스플래시를 내린다 — 로그인 화면이 한 번 깜빡이지 않게.
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <>
@@ -45,7 +53,16 @@ function RootStack() {
           headerShown: false,
           contentStyle: { backgroundColor: colors.bgPage },
         }}
-      />
+      >
+        <Stack.Protected guard={!!user}>
+          <Stack.Screen name="index" />
+        </Stack.Protected>
+        <Stack.Protected guard={!user}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
+        {/* M1 기반 점검 화면 — 사용자 데이터가 없는 진단용이라 가드 밖에 둔다 (M9 QA에서 정리) */}
+        <Stack.Screen name="foundation" />
+      </Stack>
     </>
   );
 }

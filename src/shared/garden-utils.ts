@@ -7,14 +7,17 @@
 
 /* ── 식물 레벨 정의 ───────────────────────────────────────── */
 
+/* `image`는 Paper에서 생성한 유리 식물 렌더다. 페이지 배경색(#040508)을
+   구워 넣었으므로 **페이지 배경을 바꾸면 다시 구워야 한다** (.claude/rules/3d.md).
+   emoji는 이미지가 과한 좁은 자리(알림·피드 등)에서 계속 쓴다. */
 export const PLANT_LEVELS = [
-  { level: 1, name: "씨앗",      minMinutes: 0,    emoji: "🌰" },
-  { level: 2, name: "새싹",      minMinutes: 120,  emoji: "🌱" },
-  { level: 3, name: "어린 식물", minMinutes: 480,  emoji: "🌿" },
-  { level: 4, name: "꽃봉오리",  minMinutes: 1200, emoji: "🌸" },
-  { level: 5, name: "활짝 꽃",   minMinutes: 2400, emoji: "🌺" },
-  { level: 6, name: "열매",      minMinutes: 4800, emoji: "🍎" },
-  { level: 7, name: "고목나무",  minMinutes: 9600, emoji: "🌳" },
+  { level: 1, name: "씨앗",      minMinutes: 0,    emoji: "🌰", image: "/plants/plant-1-seed.webp"     },
+  { level: 2, name: "새싹",      minMinutes: 120,  emoji: "🌱", image: "/plants/plant-2-sprout.webp"   },
+  { level: 3, name: "어린 식물", minMinutes: 480,  emoji: "🌿", image: "/plants/plant-3-seedling.webp" },
+  { level: 4, name: "꽃봉오리",  minMinutes: 1200, emoji: "🌸", image: "/plants/plant-4-bud.webp"      },
+  { level: 5, name: "활짝 꽃",   minMinutes: 2400, emoji: "🌺", image: "/plants/plant-5-bloom.webp"    },
+  { level: 6, name: "열매",      minMinutes: 4800, emoji: "🍎", image: "/plants/plant-6-fruit.webp"    },
+  { level: 7, name: "고목나무",  minMinutes: 9600, emoji: "🌳", image: "/plants/plant-7-tree.webp"     },
 ] as const;
 
 export type PlantLevel = typeof PLANT_LEVELS[number];

@@ -52,3 +52,27 @@ export function relTime(iso: string): string {
   if (day < 7) return `${day}일 전`;
   return fmtDateShort(iso);
 }
+
+/**
+ * 분 → "4h 12m" / "4h" / "12m"
+ *
+ * 지표 카드의 큰 숫자용이다. `.num`(Familjen Grotesk)으로 렌더하므로
+ * 한글 "시간/분"을 섞을 수 없다 — 그 폰트에 한글 글리프가 없다.
+ * 문장 안에서 읽히는 자리에는 계속 `fmt`를 쓴다.
+ */
+export function fmtHM(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
+/** Date → "2026. 09. 11 · 금" (페이지 헤더 눈썹용) */
+export function fmtDateEyebrow(date: Date = new Date()): string {
+  const DAY = ["일", "월", "화", "수", "목", "금", "토"];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}. ${m}. ${d} · ${DAY[date.getDay()]}`;
+}
