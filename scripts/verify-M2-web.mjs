@@ -8,7 +8,8 @@
  *   1. 비로그인으로 / 에 들어가면 로그인 화면으로 막힌다 (라우트 가드)
  *   2. 로그인 화면 — 브랜드 색 · Google 버튼 · 터치 타깃 44pt 이상 · 가로 넘침 없음
  *   3. 가드 밖 /foundation 은 로그인 없이 열린다 (M1 회귀 경로)
- *   4. 테마 오버라이드가 새로고침 뒤에도 남는다 (AsyncStorage 영속화)
+ *   4. (app)/ 아래 다른 로그인 전용 경로(/history · /more)도 막힌다 — 폴더 단위 가드 (M4)
+ *      M2의 "테마 오버라이드 영속화" 항목은 M4에서 라이트 테마를 없애며 뺐다
  *   5. 콘솔 에러 · 미처리 rejection 0
  *
  * 실제 Google 로그인은 자동화하지 않는다 — 계정 선택은 사람이 한다.
@@ -26,7 +27,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
 const BRAND_RGB = "rgb(61, 219, 135)";
-const LIGHT_BG = "rgb(244, 246, 244)";
 const MIN_TOUCH = 44;
 
 const failures = [];
@@ -121,7 +121,7 @@ try {
   await page.getByTestId("login-screen").waitFor({ state: "visible", timeout: 60_000 });
   const path = new globalThis.URL(page.url()).pathname;
   check(path === "/login", "비로그인 → 로그인 화면으로 막힘", path);
-  check((await page.getByTestId("home-screen").count()) === 0, "홈 화면이 그려지지 않음");
+  check((await page.getByTestId("dashboard").count()) === 0, "홈(대시보드)이 그려지지 않음");
 
   /* 2. 로그인 화면 */
   const markColor = await page
@@ -149,18 +149,13 @@ try {
   await screen.waitFor({ state: "visible", timeout: 30_000 });
   check(true, "/foundation 은 로그인 없이 열림");
 
-  /* 4. 테마 영속화 — 라이트로 바꾸고 새로고침 */
-  const screenBg = () => screen.evaluate((el) => getComputedStyle(el).backgroundColor);
-  await page.getByText("라이트", { exact: true }).click();
-  await page.waitForFunction(
-    (light) => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor === light,
-    LIGHT_BG,
-    { timeout: 10_000 },
-  );
-  await page.reload({ waitUntil: "networkidle" });
-  await screen.waitFor({ state: "visible", timeout: 30_000 });
-  const bgAfterReload = await screenBg();
-  check(bgAfterReload === LIGHT_BG, "테마 오버라이드가 새로고침 뒤에도 유지", bgAfterReload);
+  /* 4. 폴더 단위 가드 — (app)/ 아래 다른 경로도 막힌다 */
+  for (const protectedPath of ["/history", "/more"]) {
+    await page.goto(`${URL}${protectedPath}`, { waitUntil: "networkidle", timeout: 60_000 });
+    await page.getByTestId("login-screen").waitFor({ state: "visible", timeout: 30_000 });
+    const landed = new globalThis.URL(page.url()).pathname;
+    check(landed === "/login", `비로그인 ${protectedPath} → 로그인 화면으로 막힘`, landed);
+  }
 
   /* 5. 콘솔 */
   check(consoleErrors.length === 0, "콘솔 에러 0", consoleErrors.join(" | ").slice(0, 300));

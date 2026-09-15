@@ -9,7 +9,7 @@
  *
  * 확인 항목
  *   0. 공유 코드 드리프트 (매 검증의 첫 줄)
- *   1. 온라인 — 홈에서 서버의 내 정보를 불러온다
+ *   1. 온라인 — 홈(대시보드)이 서버 데이터를 불러온다
  *   2. 비행기 모드 켜고 앱 재시작 — 한국어 네트워크 에러가 뜬다
  *   3. 그동안 앱 프로세스가 살아 있고 크래시가 없다
  *   4. 비행기 모드 끄고 "다시 시도" — 정보를 다시 불러온다
@@ -31,9 +31,11 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TEXT_HOME = "로그아웃";
+// 로그인했을 때만 보이는 하단 탭 이름
+const TEXT_HOME = "더보기";
 const TEXT_LOGIN = "Google로 계속하기";
-const TEXT_PROFILE = "요금제";
+// 대시보드 "이번 주 스크린타임" 카드 우측 — 불러오기에 성공해야만 나온다 (로딩 중엔 "—")
+const TEXTS_READY = ["일 평균", "기록 없음"];
 // src/services/api-client.ts API_MESSAGES.network 의 앞부분
 const TEXT_OFFLINE = "인터넷에 연결되어 있지 않거나";
 const TEXT_RETRY = "다시 시도";
@@ -162,8 +164,8 @@ try {
     check(false, "로그인 상태", "먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요");
     throw new Error("not signed in");
   }
-  const online = await waitForText([TEXT_PROFILE, TEXT_OFFLINE], 30_000);
-  check(online.found === TEXT_PROFILE, "온라인 — 서버의 내 정보 표시");
+  const online = await waitForText([...TEXTS_READY, TEXT_OFFLINE], 30_000);
+  check(TEXTS_READY.includes(online.found), "온라인 — 대시보드가 서버 데이터를 불러옴", online.found ?? "");
 
   /* ── 2. 비행기 모드 ──────────────────────────────────────── */
   setAirplane(true);
@@ -171,7 +173,7 @@ try {
   console.log("\n비행기 모드를 켜고 앱을 다시 엽니다 …");
   check(await launchApp(), "비행기 모드에서 번들 로드");
   // 조회는 두 번 재시도한 뒤 실패한다 (600ms + 1800ms + 요청 시간)
-  const offline = await waitForText([TEXT_OFFLINE, TEXT_PROFILE], 45_000);
+  const offline = await waitForText([TEXT_OFFLINE, ...TEXTS_READY], 45_000);
   check(offline.found === TEXT_OFFLINE, "비행기 모드 — 한국어 네트워크 에러 표시", offline.found ?? "아무 안내도 없음");
   shot("M3-android-offline.png");
 
@@ -189,8 +191,8 @@ try {
   await wait(6000); // 네트워크가 다시 붙을 시간
   const retryXml = dumpUi();
   check(tapText(retryXml, TEXT_RETRY), "\"다시 시도\" 버튼 탭");
-  const recovered = await waitForText([TEXT_PROFILE], 30_000);
-  check(recovered.found === TEXT_PROFILE, "연결 복구 — 내 정보를 다시 불러옴");
+  const recovered = await waitForText(TEXTS_READY, 30_000);
+  check(Boolean(recovered.found), "연결 복구 — 대시보드를 다시 불러옴");
   shot("M3-android-recovered.png");
 } catch (e) {
   if (String(e) !== "Error: not signed in") check(false, "검증 중 예외", String(e).split("\n")[0]);

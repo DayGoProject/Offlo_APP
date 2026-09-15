@@ -7,17 +7,18 @@
 
 /* ── 식물 레벨 정의 ───────────────────────────────────────── */
 
-/* `image`는 Paper에서 생성한 유리 식물 렌더다. 페이지 배경색(#040508)을
-   구워 넣었으므로 **페이지 배경을 바꾸면 다시 구워야 한다** (.claude/rules/3d.md).
+/* `image`는 Paper에서 생성한 유리 식물 렌더를 **투명 배경 AVIF**(512px)로 뽑은 것이다.
+   어떤 면 위에 얹어도 사각형 경계가 생기지 않는다 (만드는 법 .claude/rules/3d.md).
+   `thumb`는 96px — 성장 단계 목록처럼 작게 여러 개 뿌리는 자리에서 512px 7장을 받지 않게 한다.
    emoji는 이미지가 과한 좁은 자리(알림·피드 등)에서 계속 쓴다. */
 export const PLANT_LEVELS = [
-  { level: 1, name: "씨앗",      minMinutes: 0,    emoji: "🌰", image: "/plants/plant-1-seed.webp"     },
-  { level: 2, name: "새싹",      minMinutes: 120,  emoji: "🌱", image: "/plants/plant-2-sprout.webp"   },
-  { level: 3, name: "어린 식물", minMinutes: 480,  emoji: "🌿", image: "/plants/plant-3-seedling.webp" },
-  { level: 4, name: "꽃봉오리",  minMinutes: 1200, emoji: "🌸", image: "/plants/plant-4-bud.webp"      },
-  { level: 5, name: "활짝 꽃",   minMinutes: 2400, emoji: "🌺", image: "/plants/plant-5-bloom.webp"    },
-  { level: 6, name: "열매",      minMinutes: 4800, emoji: "🍎", image: "/plants/plant-6-fruit.webp"    },
-  { level: 7, name: "고목나무",  minMinutes: 9600, emoji: "🌳", image: "/plants/plant-7-tree.webp"     },
+  { level: 1, name: "씨앗",      minMinutes: 0,    emoji: "🌰", image: "/plants/plant-1-seed.avif",     thumb: "/plants/thumb/plant-1-seed.avif"     },
+  { level: 2, name: "새싹",      minMinutes: 120,  emoji: "🌱", image: "/plants/plant-2-sprout.avif",   thumb: "/plants/thumb/plant-2-sprout.avif"   },
+  { level: 3, name: "어린 식물", minMinutes: 480,  emoji: "🌿", image: "/plants/plant-3-seedling.avif", thumb: "/plants/thumb/plant-3-seedling.avif" },
+  { level: 4, name: "꽃봉오리",  minMinutes: 1200, emoji: "🌸", image: "/plants/plant-4-bud.avif",      thumb: "/plants/thumb/plant-4-bud.avif"      },
+  { level: 5, name: "활짝 꽃",   minMinutes: 2400, emoji: "🌺", image: "/plants/plant-5-bloom.avif",    thumb: "/plants/thumb/plant-5-bloom.avif"    },
+  { level: 6, name: "열매",      minMinutes: 4800, emoji: "🍎", image: "/plants/plant-6-fruit.avif",    thumb: "/plants/thumb/plant-6-fruit.avif"    },
+  { level: 7, name: "고목나무",  minMinutes: 9600, emoji: "🌳", image: "/plants/plant-7-tree.avif",     thumb: "/plants/thumb/plant-7-tree.avif"     },
 ] as const;
 
 export type PlantLevel = typeof PLANT_LEVELS[number];

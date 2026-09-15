@@ -9,6 +9,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, getReactNativePersistence, initializeAuth, type Auth } from "firebase/auth";
+import { getFirestore, initializeFirestore, setLogLevel, type Firestore } from "firebase/firestore";
 
 import { firebaseConfig } from "@/config";
 
@@ -20,3 +21,17 @@ export const app = isFirstLoad ? initializeApp(firebaseConfig) : getApp();
 export const auth: Auth = isFirstLoad
   ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })
   : getAuth(app);
+
+/**
+ * Firestore — **읽기 전용으로만 쓴다** (정원 상태 · M8 알림 구독).
+ * 쓰기는 보안 규칙이 막고 있고 전부 `api.garden.*` 로 보낸다 (security.md).
+ * RN에서는 스트리밍 연결이 불안정해 롱폴링을 강제한다.
+ */
+export const db: Firestore = isFirstLoad
+  ? initializeFirestore(app, { experimentalForceLongPolling: true })
+  : getFirestore(app);
+
+// Firestore SDK는 오프라인이면 "Could not reach Cloud Firestore backend"를 console.error로 남긴다.
+// 개발 빌드에선 그게 화면 아래 빨간 알림으로 떠 탭바를 가린다 (M3 비행기 모드 점검에서 확인).
+// 실패는 getDoc이 던지는 에러로 받아 services/garden.ts가 한국어 안내로 바꾸므로 SDK 자체 로그는 끈다.
+setLogLevel("silent");

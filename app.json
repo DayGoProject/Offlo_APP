@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "offlo",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.daygoproject.offlo",
@@ -18,7 +18,7 @@
     "android": {
       "package": "com.daygoproject.offlo",
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0F",
+        "backgroundColor": "#040508",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -33,7 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0A0A0F",
+          "backgroundColor": "#040508",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -42,9 +42,9 @@
         "expo-font",
         {
           "fonts": [
-            "./assets/fonts/SpoqaHanSansNeo-Regular.ttf",
-            "./assets/fonts/SpoqaHanSansNeo-Medium.ttf",
-            "./assets/fonts/SpoqaHanSansNeo-Bold.ttf"
+            "./assets/fonts/Pretendard-Regular.otf",
+            "./assets/fonts/Pretendard-SemiBold.otf",
+            "./assets/fonts/FamiljenGrotesk-Variable.ttf"
           ]
         }
       ]
@@ -52,6 +52,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "backgroundColor": "#040508"
   }
 }

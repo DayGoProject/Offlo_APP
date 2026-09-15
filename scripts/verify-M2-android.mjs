@@ -33,7 +33,8 @@ const ADB = process.env.ANDROID_HOME
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
 const TEXT_LOGIN = "Google로 계속하기";
-const TEXT_HOME = "로그아웃";
+// 로그인했을 때만 보이는 하단 탭 이름 (M4부터 로그아웃은 더보기 탭 안에 있다)
+const TEXT_HOME = "더보기";
 
 const failures = [];
 const check = (ok, label, detail = "") => {

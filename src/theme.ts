@@ -1,125 +1,77 @@
 /**
- * 디자인 토큰 — 웹 globals.css의 CSS 변수를 그대로 옮긴 것.
+ * 디자인 토큰 — 웹 globals.css 의 :root 값을 그대로 옮긴 것 (웹 14단계 · Paper `Offlo_3D_REAL`).
  *
- * 색은 base·brand·text 3개뿐이고 중간 색조는 전부 투명도로 표현한다 (.claude/rules/design.md).
+ * **다크 단일 테마다.** 라이트 테마는 웹과 함께 없앴다 — 값이 하나뿐이라 테마 컨텍스트 없이
+ * `colors`를 바로 import한다. 색은 base·brand·text 3개와 그 투명도 변형뿐이다 (.claude/rules/design.md).
  * 새 색을 추가하지 않는다 — 필요하면 투명도를 조절한다.
  */
 
-export const BASE = "#0A0A0F";
 export const BRAND = "#3DDB87";
+/** 페이지 바탕 — 순흑이 아닌 살짝 푸른 검정 (Paper: --color-void) */
+export const VOID = "#040508";
+/** 흰 알약 버튼 바탕 — 한 화면에 하나만 (PageHeader `Pill` primary) */
 export const WHITE = "#FFFFFF";
 
-/** 위험 표시 (에러·탈퇴·삭제) — 웹 `--danger` 계열. 팔레트 3색 외 유일한 예외다 */
-const DANGER = {
+export const colors = {
+  /* 표면 — 뒤로 갈수록 밝아진다 (바탕 < 카드 < 입력면) */
+  bgPage: VOID,
+  bgCard: "#0B0D11",
+  bgNav: "#0E1116",
+  bgChat: "#080F0C",
+  bgSubtle: "rgba(216, 216, 216, 0.03)",
+  bgBar: "rgba(216, 216, 216, 0.07)",
+  bgBarSm: "rgba(216, 216, 216, 0.05)",
+  bgStrip: "rgba(216, 216, 216, 0.015)",
+
+  borderCard: "rgba(216, 216, 216, 0.10)",
+  borderSubtle: "rgba(216, 216, 216, 0.08)",
+  borderMedium: "rgba(216, 216, 216, 0.13)",
+  borderStrong: "rgba(216, 216, 216, 0.16)",
+  borderStrip: "rgba(216, 216, 216, 0.05)",
+
+  /* 텍스트 — 순백(#FFF)이 아니다. 다크에서 순백은 눈을 찌른다 */
+  textPrimary: "#D8D8D8",
+  textPrimarySoft: "rgba(216, 216, 216, 0.80)",
+  textSecondary: "rgba(216, 216, 216, 0.55)",
+  textMuted: "rgba(216, 216, 216, 0.45)",
+  textFaint: "rgba(216, 216, 216, 0.34)",
+  textGhost: "rgba(216, 216, 216, 0.18)",
+
+  scoreTrack: "rgba(216, 216, 216, 0.07)",
+  gridLine: "rgba(216, 216, 216, 0.04)",
+
+  brand: BRAND,
+  accentSoft: "rgba(61, 219, 135, 0.13)",
+  accentLine: "rgba(61, 219, 135, 0.14)",
+  /** 주간 막대에서 오늘 한 칸 */
+  brandBar: "rgba(61, 219, 135, 0.55)",
+
+  /* 위험(에러·탈퇴·삭제) — 팔레트 3색 외 유일한 예외 */
   danger: "#FF5656",
   dangerSoft: "rgba(255, 86, 86, 0.10)",
   dangerLine: "rgba(255, 86, 86, 0.24)",
-};
+} as const;
 
-export interface ThemeColors {
-  scoreTrack: string;
-  borderSubtle: string;
-  bgPage: string;
-  bgCard: string;
-  bgChat: string;
-  bgSubtle: string;
-  bgBar: string;
-  bgBarSm: string;
-  bgStrip: string;
-  borderCard: string;
-  borderStrong: string;
-  borderMedium: string;
-  borderStrip: string;
-  textPrimary: string;
-  textPrimarySoft: string;
-  textSecondary: string;
-  textMuted: string;
-  textFaint: string;
-  textGhost: string;
-  gridLine: string;
-  brand: string;
-  danger: string;
-  dangerSoft: string;
-  dangerLine: string;
-}
+export type ThemeColors = typeof colors;
 
-export const light: ThemeColors = {
-  scoreTrack: "rgba(0, 0, 0, 0.08)",
-  borderSubtle: "rgba(0, 0, 0, 0.08)",
-  bgPage: "#F4F6F4",
-  bgCard: "rgba(255, 255, 255, 0.90)",
-  bgChat: "rgba(237, 248, 242, 0.95)",
-  bgSubtle: "rgba(0, 0, 0, 0.03)",
-  bgBar: "rgba(0, 0, 0, 0.06)",
-  bgBarSm: "rgba(0, 0, 0, 0.04)",
-  bgStrip: "rgba(0, 0, 0, 0.01)",
-  borderCard: "rgba(0, 0, 0, 0.08)",
-  borderStrong: "rgba(0, 0, 0, 0.10)",
-  borderMedium: "rgba(0, 0, 0, 0.09)",
-  borderStrip: "rgba(0, 0, 0, 0.05)",
-  textPrimary: "#0A0A0F",
-  textPrimarySoft: "rgba(0, 0, 0, 0.80)",
-  textSecondary: "rgba(0, 0, 0, 0.50)",
-  textMuted: "rgba(0, 0, 0, 0.42)",
-  textFaint: "rgba(0, 0, 0, 0.32)",
-  textGhost: "rgba(0, 0, 0, 0.18)",
-  gridLine: "rgba(0, 0, 0, 0.04)",
-  brand: BRAND,
-  ...DANGER,
-};
-
-export const dark: ThemeColors = {
-  scoreTrack: "rgba(255, 255, 255, 0.08)",
-  borderSubtle: "rgba(255, 255, 255, 0.08)",
-  bgPage: "#0A0A0F",
-  bgCard: "#111118",
-  bgChat: "#0F1A14",
-  bgSubtle: "rgba(255, 255, 255, 0.03)",
-  bgBar: "rgba(255, 255, 255, 0.06)",
-  bgBarSm: "rgba(255, 255, 255, 0.05)",
-  bgStrip: "rgba(255, 255, 255, 0.01)",
-  borderCard: "rgba(255, 255, 255, 0.08)",
-  borderStrong: "rgba(255, 255, 255, 0.10)",
-  borderMedium: "rgba(255, 255, 255, 0.12)",
-  borderStrip: "rgba(255, 255, 255, 0.05)",
-  textPrimary: "#FFFFFF",
-  textPrimarySoft: "rgba(255, 255, 255, 0.80)",
-  textSecondary: "rgba(255, 255, 255, 0.50)",
-  textMuted: "rgba(255, 255, 255, 0.42)",
-  textFaint: "rgba(255, 255, 255, 0.35)",
-  textGhost: "rgba(255, 255, 255, 0.18)",
-  gridLine: "rgba(255, 255, 255, 0.015)",
-  brand: BRAND,
-  ...DANGER,
-};
-
-export const themes = { light, dark } as const;
-export type ThemeName = keyof typeof themes;
+export const radius = {
+  /** 카드 12px — 16px 이상은 다크에서 경계가 흐려져 화면이 물러 보인다 */
+  card: 12,
+  pill: 999,
+} as const;
 
 /**
- * 웹은 box-shadow를 쓰지만 RN에는 없다 — iOS/Android 각각의 그림자 속성으로 옮긴다.
- * 웹 --shadow-card 대응.
+ * 폰트 — 굵기(fontWeight)가 아니라 **파일 이름**으로 고른다. 웹과 같은 400 · 600 두 굵기뿐이다.
+ * 웹의 `font-medium`(500)은 파일이 없어 400으로 그려진다 → 앱도 regular를 쓴다.
  */
-export const shadowCard = {
-  light: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  dark: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.6,
-    shadowRadius: 40,
-    elevation: 12,
-  },
+export const fonts = {
+  regular: "Pretendard-Regular",
+  semibold: "Pretendard-SemiBold",
+  /** 숫자·영문 디스플레이 전용 (웹 `.num`). **한글 글리프가 없다** — 한글에 쓰면 행간이 무너진다 */
+  num: "FamiljenGrotesk",
 } as const;
 
-/** 폰트 — assets/fonts 의 TTF를 useFonts로 등록한 뒤 이 이름으로 참조한다 */
-export const fonts = {
-  regular: "SpoqaHanSansNeo-Regular",
-  medium: "SpoqaHanSansNeo-Medium",
-  bold: "SpoqaHanSansNeo-Bold",
-} as const;
+/** 웹의 em 단위 자간을 RN의 px로 바꾼다 — 예: 38px에 -0.045em → -1.71 */
+export function em(fontSize: number, value: number): number {
+  return fontSize * value;
+}

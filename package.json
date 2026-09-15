@@ -56,6 +56,10 @@
     "verify:M3": "npm run verify:M2 && npm run verify:M3-client && node scripts/verify-M3-android.mjs",
     "verify:M3-client": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M3-client.mjs",
     "verify:M3-android": "node scripts/verify-M3-android.mjs",
+    "verify:M4": "npm run verify:M3 && npm run verify:M4-logic && node scripts/verify-M4-web.mjs && node scripts/verify-M4-android.mjs",
+    "verify:M4-logic": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M4-logic.mjs",
+    "verify:M4-web": "node scripts/verify-M4-web.mjs",
+    "verify:M4-android": "node scripts/verify-M4-android.mjs",
     "android:build": "expo run:android --no-bundler"
   },
   "private": true

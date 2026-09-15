@@ -141,6 +141,17 @@ export interface Badge {
 
 export type { AnimalTypeId };
 
+/**
+ * 정원 상태 — API가 아니라 Firestore `users/{uid}/garden/plant · animal` 문서에서 읽는다 (services/garden.ts).
+ * 그림 컴포넌트가 Firebase 쪽 모듈을 import하지 않도록 모양만 여기에 둔다.
+ */
+export interface GardenSnapshot {
+  /** 식물 경험치 = 누적 디톡스 분 */
+  totalDetoxMinutes: number;
+  /** 동물을 아직 고르지 않았으면 null */
+  animal: { type: AnimalTypeId | null; streak: number } | null;
+}
+
 /* ── 알림 ───────────────────────────────────────────────────── */
 
 export type NotificationType =

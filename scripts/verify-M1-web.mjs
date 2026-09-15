@@ -6,9 +6,9 @@
  * 확인 항목
  *   0. 공유 코드가 웹 레포와 동일한가 (매 검증의 첫 줄 — .claude/rules/mobile.md)
  *   1. 아이폰 뷰포트(390×844)에서 화면이 뜨는가
- *   2. 브랜드 색(#3DDB87)과 스포카 한 산스 네오가 실제로 적용됐는가
+ *   2. 브랜드 색(#3DDB87)과 폰트(Pretendard 400·600 + Familjen Grotesk)가 실제로 적용됐는가
  *   3. 가로 넘침이 없는가
- *   4. 테마 오버라이드(다크 ↔ 라이트)가 동작하는가
+ *   4. 다크 단일 테마 — 바탕 #040508, 기기가 라이트 모드여도 그대로인가 (M4에서 라이트 테마 제거)
  *   5. 콘솔 에러 · 미처리 rejection이 0인가
  *
  * iOS 시뮬레이터를 쓸 수 없는 환경이라(Windows) 이 층이 가장 빠른 회귀 그물이다.
@@ -28,8 +28,9 @@ const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
 // M2부터 홈은 로그인 가드 안이다 — 기반 점검 화면은 가드 밖 /foundation 에 있다.
 const SCREEN_URL = `${URL}/foundation`;
 const BRAND_RGB = "rgb(61, 219, 135)";
-const DARK_BG = "rgb(10, 10, 15)";
-const LIGHT_BG = "rgb(244, 246, 244)";
+// 웹 14단계 팔레트 — 순흑이 아닌 살짝 푸른 검정
+const DARK_BG = "rgb(4, 5, 8)";
+const FONT_FACES = ["Pretendard-Regular", "Pretendard-SemiBold", "FamiljenGrotesk"];
 
 const failures = [];
 const check = (ok, label, detail = "") => {
@@ -131,18 +132,16 @@ try {
   });
   check(markStyle.color === BRAND_RGB, "브랜드 색 적용", markStyle.color);
   check(
-    markStyle.fontFamily.includes("SpoqaHanSansNeo-Bold"),
-    "폰트 패밀리 지정",
+    markStyle.fontFamily.includes("FamiljenGrotesk"),
+    "로고는 Familjen Grotesk",
     markStyle.fontFamily,
   );
 
-  const fontLoaded = await page.evaluate(async () => {
+  const fontLoaded = await page.evaluate(async (faces) => {
     await document.fonts.ready;
-    return ["Regular", "Medium", "Bold"].every((w) =>
-      document.fonts.check(`16px "SpoqaHanSansNeo-${w}"`),
-    );
-  });
-  check(fontLoaded, "스포카 한 산스 네오 3종 로드");
+    return faces.filter((f) => !document.fonts.check(`16px "${f}"`));
+  }, FONT_FACES);
+  check(fontLoaded.length === 0, "폰트 3종 로드 (Pretendard 400·600 · Familjen Grotesk)", fontLoaded.join(", "));
 
   /* 3. 가로 넘침 */
   const overflow = await page.evaluate(() => ({
@@ -155,25 +154,20 @@ try {
     `${overflow.scrollWidth} / ${overflow.innerWidth}`,
   );
 
-  /* 4. 테마 — 다크 기본 → 라이트 오버라이드 */
-  const screenBg = () =>
-    page.evaluate(
-      () => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor,
-    );
+  /* 4. 다크 단일 테마 — 기기 설정이 라이트여도 바탕은 그대로 */
+  const screenBg = (p) =>
+    p.evaluate(() => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor);
 
-  const darkBg = await screenBg();
-  check(darkBg === DARK_BG, "기본 스킴 = 다크", darkBg);
+  const darkBg = await screenBg(page);
+  check(darkBg === DARK_BG, "바탕 = #040508", darkBg);
   await page.screenshot({ path: join(OUT_DIR, "M1-dark.png") });
 
-  await page.getByText("라이트", { exact: true }).click();
-  await page.waitForFunction(
-    (light) =>
-      getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor === light,
-    LIGHT_BG,
-    { timeout: 10_000 },
-  );
-  check(true, "테마 오버라이드 (다크 → 라이트)");
-  await page.screenshot({ path: join(OUT_DIR, "M1-light.png") });
+  const lightDevice = await browser.newPage({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+  await lightDevice.goto(SCREEN_URL, { waitUntil: "networkidle", timeout: 120_000 });
+  await lightDevice.getByTestId("screen").waitFor({ state: "visible", timeout: 60_000 });
+  const lightDeviceBg = await screenBg(lightDevice);
+  check(lightDeviceBg === DARK_BG, "기기가 라이트 모드여도 다크 유지", lightDeviceBg);
+  await lightDevice.close();
 
   /* 5. 콘솔 */
   check(consoleErrors.length === 0, "콘솔 에러 0", consoleErrors.join(" | ").slice(0, 300));
