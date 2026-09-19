@@ -39,6 +39,8 @@ export const colors = {
 
   scoreTrack: "rgba(216, 216, 216, 0.07)",
   gridLine: "rgba(216, 216, 216, 0.04)",
+  /** 모달 뒤 가림막 — 바탕색의 투명도 */
+  scrim: "rgba(4, 5, 8, 0.78)",
 
   brand: BRAND,
   accentSoft: "rgba(61, 219, 135, 0.13)",

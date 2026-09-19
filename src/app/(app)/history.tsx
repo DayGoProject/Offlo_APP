@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 
 import HistoryView from "@/components/history/HistoryView";
+import { useAnalysesChanged } from "@/hooks/analyses-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
 import type { HistoryFilter } from "@/logic/history";
 import { api } from "@/services/api";
@@ -14,6 +15,7 @@ export default function HistoryScreen() {
   const [filter, setFilter] = useState<HistoryFilter>("all");
   // "상위 앱"이 apps를 쓴다 — 목록 API의 옵트인 파라미터로 받는다
   const history = useApiQuery((signal) => api.analyses.list({ limit: 100, includeApps: true }, signal));
+  useAnalysesChanged(history.reload);
 
   return (
     <HistoryView
@@ -24,6 +26,7 @@ export default function HistoryScreen() {
       filter={filter}
       onFilterChange={setFilter}
       onOpenAnalysis={() => router.navigate("/analysis")}
+      onOpenResult={(id) => router.push({ pathname: "/result/[id]", params: { id } })}
     />
   );
 }

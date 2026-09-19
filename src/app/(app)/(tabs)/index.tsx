@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 
 import { useAuth } from "@/auth-context";
 import DashboardView, { type DashboardData } from "@/components/dashboard/DashboardView";
+import { useAnalysesChanged } from "@/hooks/analyses-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { firstName, firstRecommendation } from "@/logic/dashboard";
 import { api } from "@/services/api";
@@ -37,6 +38,8 @@ export default function HomeTab() {
     }
     return { analyses, goals, garden, tip };
   });
+  // 분석을 저장하면 오늘 스크린타임 · 점수 · 정원 경험치가 바뀐다
+  useAnalysesChanged(dashboard.reload);
 
   return (
     <DashboardView

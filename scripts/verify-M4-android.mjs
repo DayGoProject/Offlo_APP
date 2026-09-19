@@ -180,7 +180,8 @@ try {
   shot("M4-android-home.png");
 
   /* ── 3. 탭 전환 ──────────────────────────────────────────── */
-  await openTab("분석", ["AI 분석", "M5에서 열려요"], "M4-android-analysis.png");
+  // M5부터 분석 탭이 실제 화면이다 (준비 중 화면 → 업로드 무대 · 주간 종합 분석)
+  await openTab("분석", ["AI 분석", "주간 종합 분석"], "M4-android-analysis.png");
   await openTab("정원", ["반려 정원", "M6에서 열려요"], "M4-android-garden.png");
   await openTab("커뮤니티", ["M7에서 열려요"], "M4-android-community.png");
   await openTab("더보기", ["내 계정", "분석 기록", "로그아웃"], "M4-android-more.png");

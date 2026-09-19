@@ -8,7 +8,7 @@
  *   1. 비로그인으로 / 에 들어가면 로그인 화면으로 막힌다 (라우트 가드)
  *   2. 로그인 화면 — 브랜드 색 · Google 버튼 · 터치 타깃 44pt 이상 · 가로 넘침 없음
  *   3. 가드 밖 /foundation 은 로그인 없이 열린다 (M1 회귀 경로)
- *   4. (app)/ 아래 다른 로그인 전용 경로(/history · /more)도 막힌다 — 폴더 단위 가드 (M4)
+ *   4. (app)/ 아래 다른 로그인 전용 경로(/history · /more · M5의 /analysis · /result/:id · /chat/:id)도 막힌다 — 폴더 단위 가드
  *      M2의 "테마 오버라이드 영속화" 항목은 M4에서 라이트 테마를 없애며 뺐다
  *   5. 콘솔 에러 · 미처리 rejection 0
  *
@@ -149,8 +149,8 @@ try {
   await screen.waitFor({ state: "visible", timeout: 30_000 });
   check(true, "/foundation 은 로그인 없이 열림");
 
-  /* 4. 폴더 단위 가드 — (app)/ 아래 다른 경로도 막힌다 */
-  for (const protectedPath of ["/history", "/more"]) {
+  /* 4. 폴더 단위 가드 — (app)/ 아래 다른 경로도 막힌다 (M5: 결과 · 코치 채팅 추가) */
+  for (const protectedPath of ["/history", "/more", "/analysis", "/result/any-id", "/chat/any-id"]) {
     await page.goto(`${URL}${protectedPath}`, { waitUntil: "networkidle", timeout: 60_000 });
     await page.getByTestId("login-screen").waitFor({ state: "visible", timeout: 30_000 });
     const landed = new globalThis.URL(page.url()).pathname;

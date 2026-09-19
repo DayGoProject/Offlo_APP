@@ -9,11 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.daygoproject.offlo",
-      "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "스크린타임 스크린샷을 선택해 AI 분석에 사용합니다. 이미지는 저장되지 않고 분석 후 즉시 폐기됩니다.",
-        "NSCameraUsageDescription": "스크린타임 화면을 촬영해 AI 분석에 사용합니다. 이미지는 저장되지 않고 분석 후 즉시 폐기됩니다."
-      }
+      "bundleIdentifier": "com.daygoproject.offlo"
     },
     "android": {
       "package": "com.daygoproject.offlo",
@@ -30,6 +26,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "스크린타임 스크린샷을 골라 AI 분석에 사용합니다. 이미지는 저장되지 않고 분석 후 즉시 폐기됩니다.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

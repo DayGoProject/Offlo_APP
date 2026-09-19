@@ -4,7 +4,7 @@
  * 기록은 최대 100건이라 `FlatList`로 그린다 (ScrollView에 목록을 통째로 넣지 않는다 — mobile.md).
  * 헤더 · 추이 카드는 목록 머리, 기록 한 줄이 한 항목이다. 이 파일은 `api` · `useAuth` · Firebase를 import하지 않는다.
  */
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Card, { CardHeader } from "@/components/app/Card";
@@ -27,6 +27,8 @@ export interface HistoryViewProps {
   filter: HistoryFilter;
   onFilterChange: (filter: HistoryFilter) => void;
   onOpenAnalysis: () => void;
+  /** 기록 한 줄을 누르면 결과 화면 (M5) */
+  onOpenResult: (analysisId: string) => void;
 }
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
@@ -43,6 +45,7 @@ export default function HistoryView({
   filter,
   onFilterChange,
   onOpenAnalysis,
+  onOpenResult,
 }: HistoryViewProps) {
   const insets = useSafeAreaInsets();
   const ready = analyses !== null;
@@ -136,14 +139,17 @@ export default function HistoryView({
         const first = index === 0;
         const last = index === filtered.length - 1;
         return (
-          <View
+          <Pressable
             testID="history-row"
-            style={[
+            accessibilityRole="button"
+            onPress={() => onOpenResult(item.id)}
+            style={({ pressed }) => [
               styles.rowCard,
               first && styles.rowCardFirst,
               last && styles.rowCardLast,
               !last && styles.rowDivider,
               highlight && { backgroundColor: colors.accentSoft },
+              pressed && { opacity: 0.75 },
             ]}
           >
             <View style={styles.rowMain}>
@@ -161,7 +167,7 @@ export default function HistoryView({
               </Text>
             </View>
             <Text style={[styles.score, { color: highlight ? colors.brand : colors.textPrimary }]}>{item.detoxScore}</Text>
-          </View>
+          </Pressable>
         );
       }}
     />

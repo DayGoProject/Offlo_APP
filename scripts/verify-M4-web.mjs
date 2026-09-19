@@ -148,8 +148,9 @@ try {
   /* ── 미리보기 목록 ─────────────────────────────────────── */
   {
     const { page, errors } = await open("/preview", "preview-index");
-    const links = await page.locator('a[href*="/preview/"]').count();
-    check(links === 8, "미리보기 목록 — 2개 화면 × 4개 상태", `${links}개`);
+    // M5부터 분석 · 결과 · 채팅 링크가 더 붙는다 — 여기서는 M4의 두 화면만 센다
+    const links = await page.locator('a[href*="/preview/dashboard"], a[href*="/preview/history"]').count();
+    check(links === 8, "미리보기 목록 — 대시보드 · 기록 × 4개 상태", `${links}개`);
     check(errors.length === 0, "미리보기 목록 · 콘솔 에러 0", errors.join(" | ").slice(0, 200));
     await page.close();
   }

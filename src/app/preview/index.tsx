@@ -9,17 +9,54 @@ import PageHeader from "@/components/app/PageHeader";
 import Screen from "@/components/app/Screen";
 import { colors, fonts } from "@/theme";
 
-const STATES = [
+const BASIC = [
   { state: "ready", label: "데이터 있음" },
   { state: "empty", label: "첫 사용 (비어 있음)" },
   { state: "loading", label: "불러오는 중" },
   { state: "error", label: "불러오기 실패" },
 ] as const;
 
-const SCREENS = [
-  { path: "/preview/dashboard", title: "대시보드 (홈 탭)" },
-  { path: "/preview/history", title: "분석 기록" },
-] as const;
+const SCREENS: { path: string; title: string; states: readonly { state: string; label: string }[] }[] = [
+  { path: "/preview/dashboard", title: "대시보드 (홈 탭)", states: BASIC },
+  { path: "/preview/history", title: "분석 기록", states: BASIC },
+  {
+    path: "/preview/analysis",
+    title: "AI 분석 (분석 탭)",
+    states: [
+      { state: "ready", label: "오늘 분석 전" },
+      { state: "picked", label: "사진을 고름" },
+      { state: "analyzing", label: "분석 중" },
+      { state: "save-failed", label: "저장만 실패" },
+      { state: "done", label: "오늘 분석 완료" },
+      { state: "weekly", label: "주간 분석 열림 (7/7)" },
+      { state: "empty", label: "첫 사용 (비어 있음)" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
+    path: "/preview/result",
+    title: "분석 결과",
+    states: [
+      { state: "ready", label: "일간 (시간대 패턴 있음)" },
+      { state: "free", label: "시간대 패턴 없음" },
+      { state: "weekly", label: "주간" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
+    path: "/preview/chat",
+    title: "AI 코치 채팅",
+    states: [
+      { state: "ready", label: "대화 중" },
+      { state: "sending", label: "답 기다리는 중" },
+      { state: "send-error", label: "보내기 실패 (사진 첨부)" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+];
 
 export default function PreviewIndex() {
   return (
@@ -28,7 +65,7 @@ export default function PreviewIndex() {
       {SCREENS.map((screen) => (
         <Card key={screen.path}>
           <CardHeader title={screen.title} />
-          {STATES.map(({ state, label }) => (
+          {screen.states.map(({ state, label }) => (
             <Link key={state} href={`${screen.path}?state=${state}` as Href} asChild>
               <Pressable style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}>
                 <Text style={styles.label}>{label}</Text>

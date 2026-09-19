@@ -6,7 +6,7 @@
  * - 로딩은 finally에서 끈다 (mobile.md — 웹 13단계 교훈)
  * - 화면이 사라지거나 다시 시도하면 이전 요청을 취소하고, 늦게 온 응답은 버린다
  */
-import { useEffect, useEffectEvent, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 
 import { getErrorMessage } from "@/services/api-client";
 
@@ -42,5 +42,7 @@ export function useApiQuery<T>(fetcher: (signal: AbortSignal) => Promise<T>) {
     return () => controller.abort();
   }, [attempt]);
 
-  return { ...state, reload: () => setAttempt((n) => n + 1) };
+  // 늘 같은 함수 — 포커스 효과(useFocusEffect)의 의존성으로 넣어도 되풀이되지 않는다
+  const reload = useCallback(() => setAttempt((n) => n + 1), []);
+  return { ...state, reload };
 }

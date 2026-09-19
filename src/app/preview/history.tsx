@@ -25,6 +25,7 @@ export default function HistoryPreview() {
       filter={filter}
       onFilterChange={setFilter}
       onOpenAnalysis={noop}
+      onOpenResult={noop}
     />
   );
 }

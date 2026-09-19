@@ -20,6 +20,8 @@ const FILES = [
   ["web/src/lib/format.ts", "src/shared/format.ts"],
   ["web/src/lib/garden-utils.ts", "src/shared/garden-utils.ts"],
   ["web/src/lib/badge-utils.ts", "src/shared/badge-utils.ts"],
+  // 서버의 "하루"(일간 분석 1회 제한)는 KST로 자른다 — 분석 탭의 오늘 · 이번 주 판단이 이 규칙을 따른다 (M5)
+  ["web/src/lib/kst.ts", "src/shared/kst.ts"],
 ];
 
 const MARK = "@offlo-shared";
