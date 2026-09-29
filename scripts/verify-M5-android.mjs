@@ -79,6 +79,27 @@ async function waitUntil(pred, timeoutMs, interval = 1500) {
   return { ok: false, xml };
 }
 
+/**
+ * 키보드가 화면 아래에서 가리는 높이. `{ showing, height }`
+ *
+ * 에뮬레이터는 전체 폭 키보드를 띄울 때도, 한쪽에 붙는 **작은 플로팅 키보드**를 띄울 때도 있다.
+ * 플로팅이면 화면을 밀어 올리지 않아 `mImeHeight`가 0이다 — 그때는 입력줄이 아래에 있어도 가려지지 않는다.
+ */
+function imeCover() {
+  const dump = adb(["shell", "dumpsys", "window", "displays"]).stdout ?? "";
+  const focused = /mInputShown=true/.test(adb(["shell", "dumpsys", "input_method"]).stdout ?? "");
+  return {
+    // 플로팅 키보드는 화면을 밀어 올리지 않아 mIsImeShowing이 false다 — 입력이 잡혔는지도 같이 본다
+    showing: focused || /mIsImeShowing=true/.test(dump),
+    height: Number(dump.match(/mImeHeight=(\d+)/)?.[1] ?? 0),
+  };
+}
+
+/** 화면 세로 픽셀 */
+function screenHeight() {
+  return Number((adb(["shell", "wm", "size"]).stdout ?? "").match(/Physical size: \d+x(\d+)/)?.[1] ?? 0);
+}
+
 /** 원하는 요소가 보일 때까지 아래로 민다 */
 async function scrollTo(id, tries = 12) {
   let xml = dumpUi();
@@ -250,12 +271,17 @@ try {
   adb(["shell", "input", "text", "How%scan%sI%scut%sdown%slate%snight%suse?"]);
   await wait(800);
   const typed = dumpUi();
-  const keyboardShown = /mInputShown=true/.test(adb(["shell", "dumpsys", "input_method"]).stdout ?? "");
   const inputBox = boundsOf(typed, "resource-id", "chat-input");
-  if (keyboardShown) {
-    check(Boolean(inputBox) && inputBox[3] < 1700, "키보드가 올라와도 입력줄이 그 위에 있다", inputBox ? `입력줄 아래 끝 y=${inputBox[3]}` : "");
+  const ime = imeCover();
+  if (!ime.showing) {
+    skip("키보드가 입력줄을 가리지 않는다", "에뮬레이터가 화면 키보드를 띄우지 않았다 (하드웨어 키보드 설정)");
+  } else if (ime.height === 0) {
+    skip("키보드가 입력줄을 가리지 않는다", "플로팅 키보드라 화면을 가리지 않는다 — 올려줄 것이 없다");
+  } else if (!inputBox) {
+    check(false, "키보드가 입력줄을 가리지 않는다", "입력줄을 찾지 못했다");
   } else {
-    skip("키보드 위 입력줄", "에뮬레이터가 화면 키보드를 띄우지 않았다 (하드웨어 키보드 설정)");
+    const coverTop = screenHeight() - ime.height;
+    check(inputBox[3] <= coverTop + 8, "키보드가 입력줄을 가리지 않는다", `입력줄 아래 끝 ${inputBox[3]} · 키보드 윗변 ${coverTop}`);
   }
   shot("M5-android-chat-typing.png");
   check(tap(typed, "resource-id", "send-message"), "보내기");
