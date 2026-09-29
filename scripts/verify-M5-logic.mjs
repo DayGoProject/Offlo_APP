@@ -59,6 +59,7 @@ registerHooks({
 });
 
 const load = (file) => import(pathToFileURL(join(SRC, "logic", file)).href);
+const kst = await import(pathToFileURL(join(SRC, "shared", "kst.ts")).href);
 const a = await load("analysis.ts");
 const img = await load("image.ts");
 const chat = await load("chat.ts");
@@ -71,7 +72,7 @@ const check = (ok, label, detail = "") => {
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
 
 /** KST 벽시계 시각 → 절대 시각(ms). 실행 시간대와 무관하다 */
-const kst = (y, mo, d, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h - 9, mi);
+const at = (y, mo, d, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h - 9, mi);
 const iso = (ms) => new Date(ms).toISOString();
 const row = (id, ms, totalMinutes = 300, detoxScore = 60, periodType = "daily", apps) => ({
   id,
@@ -84,17 +85,17 @@ const row = (id, ms, totalMinutes = 300, detoxScore = 60, periodType = "daily", 
 });
 
 /** 2026-09-17 목요일 오전 10시 (KST) */
-const NOW = kst(2026, 9, 17, 10);
+const NOW = at(2026, 9, 17, 10);
 
 /* ── 1. 오늘 판단 ──────────────────────────────────────────── */
 {
-  const early = row("early", kst(2026, 9, 17, 0, 30)); // UTC로는 9/16 15:30 — 기기가 UTC면 "어제"로 보인다
-  const lastNight = row("last-night", kst(2026, 9, 16, 23, 59));
-  const weekly = row("weekly", kst(2026, 9, 17, 9), 2100, 60, "weekly");
+  const early = row("early", at(2026, 9, 17, 0, 30)); // UTC로는 9/16 15:30 — 기기가 UTC면 "어제"로 보인다
+  const lastNight = row("last-night", at(2026, 9, 16, 23, 59));
+  const weekly = row("weekly", at(2026, 9, 17, 9), 2100, 60, "weekly");
   check(a.todayDaily([early, lastNight], NOW)?.id === "early", "오늘: KST 00:30 기록은 오늘 (서버와 같은 경계)");
   check(a.todayDaily([lastNight], NOW) === null, "오늘: KST 전날 23:59 기록은 오늘이 아니다");
   check(a.todayDaily([weekly], NOW) === null, "오늘: 주간 분석은 일간 1회에 세지 않는다");
-  check(a.todayDaily([early], kst(2026, 9, 18, 0, 0)) === null, "오늘: KST 자정이 지나면 다시 올릴 수 있다");
+  check(a.todayDaily([early], at(2026, 9, 18, 0, 0)) === null, "오늘: KST 자정이 지나면 다시 올릴 수 있다");
   check(a.todayDaily([], NOW) === null, "오늘: 기록 없음");
 }
 
@@ -102,10 +103,10 @@ const NOW = kst(2026, 9, 17, 10);
 {
   // 월요일(9/14)을 건너뛰고 화·수·목 — 웹은 화요일 기록을 "월" 칸에 넣는다
   const list = [
-    row("thu", kst(2026, 9, 17, 8), 252, 72),
-    row("wed", kst(2026, 9, 16, 21), 290, 66),
-    row("tue", kst(2026, 9, 15, 21), 318, 61),
-    row("last-sun", kst(2026, 9, 13, 21), 340, 58), // 지난주 — 빠져야 한다
+    row("thu", at(2026, 9, 17, 8), 252, 72),
+    row("wed", at(2026, 9, 16, 21), 290, 66),
+    row("tue", at(2026, 9, 15, 21), 318, 61),
+    row("last-sun", at(2026, 9, 13, 21), 340, 58), // 지난주 — 빠져야 한다
   ];
   const slots = a.weekSlots(list, NOW);
   check(same(slots.map((s) => s.day), ["월", "화", "수", "목", "금", "토", "일"]), "7칸: 월요일 시작");
@@ -115,26 +116,38 @@ const NOW = kst(2026, 9, 17, 10);
   check(same(a.thisWeekDaily(list, NOW).map((r) => r.id), ["tue", "wed", "thu"]), "이번 주 일간: 오래된 → 최신 · 지난주 제외");
 
   // 일요일 밤 — 이번 주가 끝나는 날. 다음 날 월요일 0시(KST)에 새 주
-  const sunday = kst(2026, 9, 20, 23, 50);
+  const sunday = at(2026, 9, 20, 23, 50);
   check(a.weekSlots(list, sunday)[6].isToday, "7칸: 일요일은 마지막 칸");
-  check(a.thisWeekDaily(list, kst(2026, 9, 21, 0, 5)).length === 0, "7칸: 월요일 0시(KST)에 초기화");
+  check(a.thisWeekDaily(list, at(2026, 9, 21, 0, 5)).length === 0, "7칸: 월요일 0시(KST)에 초기화");
 
-  const dup = [row("new", kst(2026, 9, 16, 22)), row("old", kst(2026, 9, 16, 9))];
+  const dup = [row("new", at(2026, 9, 16, 22)), row("old", at(2026, 9, 16, 9))];
   check(a.thisWeekDaily(dup, NOW).map((r) => r.id).join() === "new", "같은 날 두 건이면 최신만");
+}
+
+/* ── 2-1. 주 경계 — 서버의 주간 1회 제한이 쓰는 값 (웹 lib/kst.ts = 공유 코드) ── */
+{
+  const iso = (ms) => new Date(ms).toISOString();
+  const monday = iso(at(2026, 9, 14, 0, 0)); // 2026-09-14(월) 0시 KST
+  check(kst.kstWeekStart(NOW).toISOString() === monday, "주 경계: 목요일 → 그 주 월요일 0시(KST)", kst.kstWeekStart(NOW).toISOString());
+  check(kst.kstWeekStart(at(2026, 9, 14, 0, 0)).toISOString() === monday, "주 경계: 월요일 0시 정각은 그 주에 든다");
+  check(kst.kstWeekStart(at(2026, 9, 20, 23, 59)).toISOString() === monday, "주 경계: 일요일 23:59까지 같은 주");
+  check(kst.kstWeekStart(at(2026, 9, 21, 0, 1)).toISOString() === iso(at(2026, 9, 21, 0, 0)), "주 경계: 월요일 0시에 새 주");
+  check(kst.kstWeekStart(at(2026, 9, 13, 23, 59)).toISOString() === iso(at(2026, 9, 7, 0, 0)), "주 경계: 지난주 일요일은 지난주 월요일");
+  check(kst.kstDayStart(at(2026, 9, 17, 0, 30)).toISOString() === iso(at(2026, 9, 17, 0, 0)), "하루 경계: KST 0시");
 }
 
 /* ── 3. 주간 요약 · 이번 주 주간 분석 ──────────────────────── */
 {
   const apps = [{ appName: "앱A", minutes: 90, category: "SNS" }];
-  const week = [row("mon", kst(2026, 9, 14, 7), 300, 55, "daily", apps), row("tue", kst(2026, 9, 15, 21), 280, 60)];
+  const week = [row("mon", at(2026, 9, 14, 7), 300, 55, "daily", apps), row("tue", at(2026, 9, 15, 21), 280, 60)];
   const summaries = a.weeklySummaries(week);
   check(summaries[0].date === "9월 14일 (월)", "요약: 날짜 라벨은 KST (월요일 오전 7시 = 9/14)", summaries[0].date);
   check(summaries[1].date === "9월 15일 (화)", "요약: 순서 유지", summaries[1].date);
   check(same(summaries[0].apps, apps) && same(summaries[1].apps, []), "요약: 앱별 시간 · 없으면 빈 배열");
   check(summaries[0].totalMinutes === 300 && summaries[0].detoxScore === 55, "요약: 시간 · 점수");
 
-  const thisWeek = row("w-now", kst(2026, 9, 14, 0, 10), 2000, 60, "weekly");
-  const lastWeek = row("w-last", kst(2026, 9, 13, 23, 50), 2000, 60, "weekly");
+  const thisWeek = row("w-now", at(2026, 9, 14, 0, 10), 2000, 60, "weekly");
+  const lastWeek = row("w-last", at(2026, 9, 13, 23, 50), 2000, 60, "weekly");
   check(a.thisWeekWeekly([thisWeek], NOW)?.id === "w-now", "주간: 이번 주 월요일 0:10(KST) 생성분 = 이번 주");
   check(a.thisWeekWeekly([lastWeek], NOW) === null, "주간: 지난주 일요일 23:50 생성분은 지난주");
   check(a.thisWeekWeekly([row("d", NOW)], NOW) === null, "주간: 일간 기록은 세지 않는다");

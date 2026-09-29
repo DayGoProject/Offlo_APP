@@ -7,9 +7,9 @@
  * 규칙
  * - **AI 호출은 자동으로 다시 보내지 않는다** (비용 · 일간 1회 — api-client가 재시도하지 않는다). 다시 시도는 사용자가 누른다
  * - **저장만 실패하면 AI 결과를 들고 저장만 다시 시도한다** — AI를 다시 부르지 않는다
- * - 409(오늘 이미 분석함)는 AI 단계 · 저장 단계 어디서 와도 같다 — 서버가 AI 호출 전에도 확인한다 (웹 048230b).
- *   저장 단계의 409는 "방금 저장했는데 응답만 잃었다"일 수도 있으니 오늘 기록을 찾아 결과 화면으로 보낸다
- * - 주간은 서버가 중복 저장을 막지 않는다 → 저장을 다시 시도하기 전에 이번 주 주간 분석이 이미 생겼는지 먼저 본다
+ * - 409(이미 분석함)는 AI 단계 · 저장 단계 어디서 와도 같다 — 서버가 AI 호출 전에도 확인한다
+ *   (일간 하루 1회 · 주간 한 주 1회 — 웹 `lib/analysis-limits.ts`).
+ *   409는 "방금 저장했는데 응답만 잃었다"일 수도 있으니 그 기록을 찾아 결과 화면으로 보낸다
  */
 import { useRef, useState } from "react";
 
@@ -138,6 +138,15 @@ async function findToday(): Promise<string | null> {
   }
 }
 
+async function findThisWeekWeekly(): Promise<string | null> {
+  try {
+    const { analyses } = await api.analyses.list({ periodType: "weekly", limit: 1 });
+    return thisWeekWeekly(analyses, Date.now())?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /* ── 주간 ───────────────────────────────────────────────────── */
 
 export function useWeeklyAnalysis({ onSaved }: { onSaved: (analysisId: string) => void }) {
@@ -151,6 +160,14 @@ export function useWeeklyAnalysis({ onSaved }: { onSaved: (analysisId: string) =
       const { analysisData } = await api.ai.weekly({ dailySummaries: weeklySummaries(records) });
       pending.current = { data: analysisData, sourceAnalysisIds: records.map((r) => r.id) };
     } catch (e) {
+      // 이번 주 주간 분석을 이미 받았다 (다른 기기에서) — 그 결과로 보낸다
+      if (isConflict(e)) {
+        const existing = await findThisWeekWeekly();
+        if (existing) {
+          finish(existing);
+          return;
+        }
+      }
       setState({ phase: "idle", error: getErrorMessage(e) });
       return;
     }
@@ -163,17 +180,23 @@ export function useWeeklyAnalysis({ onSaved }: { onSaved: (analysisId: string) =
     setState({ phase: "saving", error: null });
     try {
       if (retrying) {
-        // 앞선 저장이 응답만 잃었을 수 있다 — 주간은 서버가 중복을 막지 않으니 이미 생겼는지 먼저 본다
-        const { analyses } = await api.analyses.list({ periodType: "weekly", limit: 1 });
-        const existing = thisWeekWeekly(analyses, Date.now());
+        // 앞선 저장이 응답만 잃었을 수 있다 — 다시 보내기 전에 이번 주 주간 분석이 이미 생겼는지 본다
+        const existing = await findThisWeekWeekly();
         if (existing) {
-          finish(existing.id);
+          finish(existing);
           return;
         }
       }
       const { analysisId } = await api.analyses.create({ ...p.data, sourceAnalysisIds: p.sourceAnalysisIds });
       finish(analysisId);
     } catch (e) {
+      if (isConflict(e)) {
+        const existing = await findThisWeekWeekly();
+        if (existing) {
+          finish(existing);
+          return;
+        }
+      }
       setState({ phase: "save-failed", error: getErrorMessage(e) });
     }
   }

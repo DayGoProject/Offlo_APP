@@ -6,7 +6,7 @@
 /**
  * KST 날짜 유틸 — 클라이언트·서버 양쪽 안전 (외부 의존성 없음).
  *
- * 서버는 "하루"를 KST로 자른다 — 일간 분석 1회 제한(`lib/daily-analysis.ts`)·연속 기록(`lib/garden.ts`).
+ * 서버는 "하루"를 KST로 자른다 — 분석 횟수 제한(`lib/analysis-limits.ts`)·연속 기록(`lib/garden.ts`).
  * API의 `createdAt`은 UTC ISO 문자열이라 `slice(0, 10)`으로 날짜를 뽑으면
  * **오전 9시(KST) 전 기록이 전날로 잡힌다.** 화면에서 날짜를 비교할 때는 이 파일을 거친다.
  * KST는 서머타임이 없으므로 24시간을 빼면 정확히 전날이다.
@@ -23,6 +23,12 @@ export function kstDateKey(at: string | number | Date = Date.now()): string {
 /** 시각이 속한 KST 날짜의 0시 — DB `createdAt`(UTC)과 `gte`로 비교하는 "오늘"의 시작 */
 export function kstDayStart(at: string | number | Date = Date.now()): Date {
   return new Date(Date.parse(`${kstDateKey(at)}T00:00:00Z`) - KST_OFFSET_MS);
+}
+
+/** 시각이 속한 주의 월요일 0시(KST) — 주간 분석 1회 제한의 "이번 주" 시작 */
+export function kstWeekStart(at: string | number | Date = Date.now()): Date {
+  const { todayIndex } = kstWeek(new Date(at).getTime());
+  return new Date(kstDayStart(at).getTime() - todayIndex * DAY_MS);
 }
 
 /** 이번 주(월요일 시작, KST)의 날짜 키 7개와 오늘의 위치. `dow`는 0=일 ~ 6=토 */
