@@ -19,6 +19,9 @@ expo-env.d.ts
 shot.png
 sample*.png
 
+# 받은 3D 모델 — 라이선스를 확인하기 전에는 커밋하지 않는다 (공개 레포: CC0 · CC-BY만. docs/garden-game-design.md 8-2)
+assets/models/incoming/
+
 # Native build output (prebuild 산출물 — 커밋하지 않는다)
 ios/
 android/

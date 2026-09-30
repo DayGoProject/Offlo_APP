@@ -4,6 +4,7 @@
  * - primary: 흰 알약 — **한 화면에 하나만.** 두 개가 되는 순간 둘 다 주목받지 못한다
  * - accent: 브랜드 그린
  * - ghost: 세선
+ * - danger: 되돌릴 수 없는 확인 (동물 변경 등)
  *
  * 높이는 Paper 기준 38px이고, 터치 영역은 hitSlop으로 44pt를 채운다 (mobile.md).
  */
@@ -11,7 +12,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 
 import { colors, fonts, radius, WHITE } from "@/theme";
 
-type Variant = "primary" | "accent" | "ghost";
+type Variant = "primary" | "accent" | "ghost" | "danger";
 
 export default function Pill({
   label,
@@ -70,5 +71,10 @@ const skins = {
   ghost: StyleSheet.create({
     box: { paddingHorizontal: 18, borderWidth: 1, borderColor: colors.borderStrong },
     label: { fontFamily: fonts.regular, color: colors.textPrimary },
+  }),
+  /** 되돌릴 수 없는 확인 버튼 — 동물 변경 · 삭제 (웹 `--danger-soft` 알약) */
+  danger: StyleSheet.create({
+    box: { paddingHorizontal: 20, borderWidth: 1, borderColor: colors.dangerLine, backgroundColor: colors.dangerSoft },
+    label: { fontFamily: fonts.semibold, color: colors.danger },
   }),
 } satisfies Record<Variant, { box: object; label: object }>;

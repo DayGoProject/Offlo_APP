@@ -182,7 +182,20 @@ try {
   /* ── 3. 탭 전환 ──────────────────────────────────────────── */
   // M5부터 분석 탭이 실제 화면이다 (준비 중 화면 → 업로드 무대 · 주간 종합 분석)
   await openTab("분석", ["AI 분석", "주간 종합 분석"], "M4-android-analysis.png");
-  await openTab("정원", ["반려 정원", "M6에서 열려요"], "M4-android-garden.png");
+  // M6부터 정원 탭이 실제 화면이다 — 동물 상태는 계정마다 달라도 식물 성장 카드는 늘 있다.
+  // 동물이 계속 움직이는 화면은 uiautomator가 읽지 못한다("could not get idle state") — 정지 모드 딥링크로 연다.
+  // (탭 누름 자체는 다른 탭 전환이 이미 보여 준다. 움직임 검증은 verify-M6-android.mjs)
+  adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://garden?still=1", "-p", PACKAGE]);
+  // 화면에 보이는 요소만 dump에 나온다 — 스크롤 아래 식물 카드 대신 위쪽 헤드라인(상태별 5종 중 하나)으로 본다
+  const gardenHeadlines = ["함께할 동물을 골라 주세요", "알이 부화를 기다리고 있어요", "오늘 밥을 배부르게 먹었어요", "슬슬 밥 먹을 시간이에요", "굶어서 힘이 없어요"];
+  let gardenXml = "";
+  const gardenUntil = Date.now() + 20_000;
+  while (Date.now() < gardenUntil && !gardenHeadlines.some((t) => gardenXml.includes(t))) {
+    await wait(1500);
+    gardenXml = dumpUi();
+  }
+  check(gardenHeadlines.some((t) => gardenXml.includes(t)), "탭 전환 — 정원 (정지 모드)");
+  shot("M4-android-garden.png");
   await openTab("커뮤니티", ["M7에서 열려요"], "M4-android-community.png");
   await openTab("더보기", ["내 계정", "분석 기록", "로그아웃"], "M4-android-more.png");
   check((await waitForAll(["플랜"], 20_000)).ok, "더보기 — 서버의 내 계정 정보");

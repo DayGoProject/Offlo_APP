@@ -149,7 +149,12 @@ export interface GardenSnapshot {
   /** 식물 경험치 = 누적 디톡스 분 */
   totalDetoxMinutes: number;
   /** 동물을 아직 고르지 않았으면 null */
-  animal: { type: AnimalTypeId | null; streak: number } | null;
+  animal: {
+    type: AnimalTypeId | null;
+    streak: number;
+    /** 마지막으로 밥(일간 분석)을 받은 날 — KST 날짜 키 "2026-09-17". 한 번도 없으면 null */
+    lastAnalysisDate: string | null;
+  } | null;
 }
 
 /* ── 알림 ───────────────────────────────────────────────────── */

@@ -1,0 +1,250 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;background:#141D33}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+
+/* ── SDF 도구 ─────────────────────────────────────────── */
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const clamp = (x, a, b) => Math.min(Math.max(x, a), b);
+const smin = (a, b, k) => { const h = clamp(0.5 + 0.5 * (b - a) / k, 0, 1); return b * (1 - h) + a * h - k * h * (1 - h); };
+const ell = (px, py, pz, cx, cy, cz, rx, ry, rz) => {
+  const x = px - cx, y = py - cy, z = pz - cz;
+  const k0 = Math.hypot(x / rx, y / ry, z / rz), k1 = Math.hypot(x / (rx * rx), y / (ry * ry), z / (rz * rz));
+  return k1 < 1e-6 ? -Math.min(rx, ry, rz) : k0 * (k0 - 1) / k1;
+};
+const cap = (px, py, pz, ax, ay, az, bx, by, bz, r) => {
+  const pax = px - ax, pay = py - ay, paz = pz - az, bax = bx - ax, bay = by - ay, baz = bz - az;
+  const h = clamp((pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz), 0, 1);
+  return Math.hypot(pax - bax * h, pay - bay * h, paz - baz * h) - r;
+};
+const cone = (px, py, pz, ax, ay, az, bx, by, bz, r1, r2) => {
+  const bax = bx - ax, bay = by - ay, baz = bz - az;
+  const l2 = bax * bax + bay * bay + baz * baz, rr = r1 - r2, a2 = l2 - rr * rr, il2 = 1 / l2;
+  const pax = px - ax, pay = py - ay, paz = pz - az;
+  const y = pax * bax + pay * bay + paz * baz, z = y - l2;
+  const xx = pax * l2 - bax * y, xy = pay * l2 - bay * y, xz = paz * l2 - baz * y;
+  const x2 = xx * xx + xy * xy + xz * xz, y2 = y * y * l2, z2 = z * z * l2;
+  const k = Math.sign(rr) * rr * rr * x2;
+  if (Math.sign(z) * a2 * z2 > k) return Math.sqrt(x2 + z2) * il2 - r2;
+  if (Math.sign(y) * a2 * y2 < k) return Math.sqrt(x2 + y2) * il2 - r1;
+  return (Math.sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
+};
+const soft = (d, r) => 1 - clamp(d / r, 0, 1);
+const col = (h) => new THREE.Color(h);
+const mix = (a, b, t) => a.clone().lerp(b, clamp(t, 0, 1));
+
+/* ── Surface Nets ─────────────────────────────────────── */
+function surfaceNets(sdf, min, max, step) {
+  const nx = Math.ceil((max[0] - min[0]) / step) + 1, ny = Math.ceil((max[1] - min[1]) / step) + 1, nz = Math.ceil((max[2] - min[2]) / step) + 1;
+  const vals = new Float32Array(nx * ny * nz);
+  const at = (i, j, k) => (k * ny + j) * nx + i;
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) vals[at(i, j, k)] = sdf(min[0] + i * step, min[1] + j * step, min[2] + k * step);
+  const cellIdx = new Int32Array((nx - 1) * (ny - 1) * (nz - 1)).fill(-1);
+  const cid = (i, j, k) => (k * (ny - 1) + j) * (nx - 1) + i;
+  const positions = [];
+  const corners = [[0,0,0],[1,0,0],[0,1,0],[1,1,0],[0,0,1],[1,0,1],[0,1,1],[1,1,1]];
+  const edges = [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+  for (let k = 0; k < nz - 1; k++) for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const v = corners.map(([a, b, c]) => vals[at(i + a, j + b, k + c)]);
+    let sx = 0, sy = 0, sz = 0, n = 0;
+    for (const [e0, e1] of edges) {
+      const a = v[e0], b = v[e1];
+      if ((a < 0) === (b < 0)) continue;
+      const t = a / (a - b), c0 = corners[e0], c1 = corners[e1];
+      sx += c0[0] + (c1[0] - c0[0]) * t; sy += c0[1] + (c1[1] - c0[1]) * t; sz += c0[2] + (c1[2] - c0[2]) * t; n++;
+    }
+    if (!n) continue;
+    cellIdx[cid(i, j, k)] = positions.length / 3;
+    positions.push(min[0] + (i + sx / n) * step, min[1] + (j + sy / n) * step, min[2] + (k + sz / n) * step);
+  }
+  const indices = [];
+  const quad = (a, b, c, d, flip) => { if (a < 0 || b < 0 || c < 0 || d < 0) return; flip ? indices.push(a, c, b, a, d, c) : indices.push(a, b, c, a, c, d); };
+  for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+    const s0 = vals[at(i, j, k)] < 0;
+    if (s0 !== (vals[at(i + 1, j, k)] < 0)) quad(cellIdx[cid(i, j - 1, k - 1)], cellIdx[cid(i, j, k - 1)], cellIdx[cid(i, j, k)], cellIdx[cid(i, j - 1, k)], s0);
+    if (s0 !== (vals[at(i, j + 1, k)] < 0)) quad(cellIdx[cid(i - 1, j, k - 1)], cellIdx[cid(i - 1, j, k)], cellIdx[cid(i, j, k)], cellIdx[cid(i, j, k - 1)], s0);
+    if (s0 !== (vals[at(i, j, k + 1)] < 0)) quad(cellIdx[cid(i - 1, j - 1, k)], cellIdx[cid(i, j - 1, k)], cellIdx[cid(i, j, k)], cellIdx[cid(i - 1, j, k)], s0);
+  }
+  return { positions, indices };
+}
+
+/* ── 세 동물 정의 ─────────────────────────────────────── */
+// 공통: 앉은 자세 · +z가 앞 · 좌우 대칭(|x|) · 꼬리만 한쪽
+const ANIMALS = {
+  cat: {
+    sdf(x, y, z) {
+      const ax = Math.abs(x);
+      let d = ell(ax, y, z, 0, 0.72, -0.1, 0.62, 0.72, 0.58);
+      d = smin(d, ell(ax, y, z, 0.5, 0.36, -0.14, 0.36, 0.38, 0.46), 0.14);
+      d = smin(d, ell(ax, y, z, 0, 0.9, 0.3, 0.46, 0.54, 0.38), 0.16);
+      d = smin(d, ell(ax, y, z, 0, 1.76, 0.16, 1.0, 0.8, 0.82), 0.16);
+      d = smin(d, ell(ax, y, z, 0.66, 1.58, 0.42, 0.36, 0.26, 0.34), 0.12);
+      d = smin(d, cone(ax, y, z, 0.86, 1.6, 0.36, 1.12, 1.5, 0.28, 0.16, 0.03), 0.08);
+      d = smin(d, ell(ax, y, z, 0, 1.52, 0.86, 0.34, 0.25, 0.22), 0.1);
+      d = smin(d, cone(ax, y, z, 0.6, 2.2, 0.0, 0.78, 2.72, -0.1, 0.27, 0.06), 0.06);
+      d = smin(d, cap(ax, y, z, 0.28, 0.98, 0.4, 0.28, 0.2, 0.5, 0.2), 0.1);
+      d = smin(d, ell(ax, y, z, 0.28, 0.14, 0.6, 0.25, 0.16, 0.3), 0.08);
+      let t = cap(x, y, z, 0.42, 0.3, -0.5, 0.98, 0.42, -0.78, 0.16);
+      t = smin(t, cap(x, y, z, 0.98, 0.42, -0.78, 1.24, 1.0, -0.72, 0.14), 0.1);
+      t = smin(t, cap(x, y, z, 1.24, 1.0, -0.72, 1.18, 1.4, -0.6, 0.13), 0.1);
+      return smin(d, t, 0.1);
+    },
+    paint(x, y, z, c) {
+      const ax = Math.abs(x);
+      const O = col("#FFA84D"), C = col("#FFEBD0"), D = col("#D9762A"), P = col("#FF9FB2"), B = col("#FF8E8E");
+      let r = O.clone();
+      const sh = (y > 2.0 && z > -0.2) ? Math.max(0, Math.sin(ax * 16 + 0.6)) * clamp((y - 2.0) * 3, 0, 1) * clamp(1 - ax * 1.4, 0, 1) : 0;
+      const sb = (y < 1.4 && y > 0.3 && z < 0.1) ? Math.max(0, Math.sin(y * 17)) * clamp((ax - 0.3) * 3, 0, 1) : 0;
+      const st = ax > 0.4 && z < -0.4 ? Math.max(0, Math.sin(y * 20 + x * 8)) : 0;
+      r = mix(r, D, Math.max(sh, sb, st) * 0.6);
+      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.62, 0.42, 0.62, 0.36), 0.2), soft(ell(ax, y, z, 0, 1.46, 1.02, 0.4, 0.3, 0.3), 0.16), soft(ell(ax, y, z, 0.28, 0.12, 0.6, 0.28, 0.18, 0.34), 0.12)));
+      if (y > 2.2 && z > -0.05) r = mix(r, P, soft(cone(ax, y, z, 0.62, 2.2, 0.12, 0.74, 2.62, 0.02, 0.13, 0.02), 0.12));
+      r = mix(r, B, soft(ell(ax, y, z, 0.66, 1.56, 0.7, 0.18, 0.11, 0.14), 0.1) * 0.55);
+      return r;
+    },
+    bounds: [[-1.5, -0.3, -1.3], [1.6, 3.0, 1.4]],
+    face: { eye: [0.42, 1.8, 0.94], nose: [0, 1.6, 1.08], eyeScale: [0.19, 0.24, 0.11], iris: "#7C66C9" },
+  },
+
+  dog: {
+    sdf(x, y, z) {
+      const ax = Math.abs(x);
+      let d = ell(ax, y, z, 0, 0.72, -0.1, 0.62, 0.72, 0.6);
+      d = smin(d, ell(ax, y, z, 0.5, 0.36, -0.14, 0.36, 0.38, 0.48), 0.14);
+      d = smin(d, ell(ax, y, z, 0, 0.9, 0.3, 0.48, 0.56, 0.4), 0.16);
+      d = smin(d, ell(ax, y, z, 0, 1.72, 0.18, 0.94, 0.78, 0.84), 0.16);            // 머리
+      d = smin(d, ell(ax, y, z, 0, 1.5, 1.0, 0.4, 0.3, 0.42), 0.14);                // 긴 주둥이
+      d = smin(d, ell(ax, y, z, 0.52, 1.5, 0.66, 0.3, 0.24, 0.3), 0.12);            // 볼
+      // 늘어진 귀 — 머리 옆에서 아래로
+      d = smin(d, cone(ax, y, z, 0.72, 2.12, 0.02, 1.02, 1.42, -0.06, 0.32, 0.2), 0.08);
+      d = smin(d, cap(ax, y, z, 0.28, 0.98, 0.4, 0.28, 0.2, 0.5, 0.2), 0.1);
+      d = smin(d, ell(ax, y, z, 0.28, 0.14, 0.6, 0.25, 0.16, 0.3), 0.08);
+      // 통통한 꼬리
+      let t = cap(x, y, z, 0.3, 0.36, -0.62, 0.86, 0.6, -0.86, 0.17);
+      t = smin(t, cap(x, y, z, 0.86, 0.6, -0.86, 1.0, 1.1, -0.8, 0.16), 0.12);
+      return smin(d, t, 0.1);
+    },
+    paint(x, y, z) {
+      const ax = Math.abs(x);
+      const G = col("#F2B45E"), C = col("#FFF1D8"), E = col("#B8773F"), B = col("#FF9A8E");
+      let r = G.clone();
+      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.66, 0.44, 0.64, 0.38), 0.2), soft(ell(ax, y, z, 0, 1.44, 1.16, 0.44, 0.34, 0.4), 0.18), soft(ell(ax, y, z, 0.28, 0.12, 0.6, 0.28, 0.18, 0.34), 0.12), soft(ell(ax, y, z, 0, 2.12, 0.5, 0.1, 0.4, 0.2), 0.12) * 0.6));
+      r = mix(r, E, soft(cone(ax, y, z, 0.72, 2.12, 0.02, 1.02, 1.42, -0.06, 0.32, 0.2), 0.02) * 0.95);
+      r = mix(r, B, soft(ell(ax, y, z, 0.56, 1.5, 0.86, 0.18, 0.11, 0.14), 0.1) * 0.5);
+      return r;
+    },
+    bounds: [[-1.5, -0.3, -1.3], [1.6, 3.0, 1.6]],
+    face: { eye: [0.4, 1.86, 0.9], nose: [0, 1.6, 1.4], eyeScale: [0.16, 0.2, 0.1], iris: "#8A6A3E", bigNose: true },
+  },
+
+  rabbit: {
+    sdf(x, y, z) {
+      const ax = Math.abs(x);
+      let d = ell(ax, y, z, 0, 0.7, -0.05, 0.64, 0.7, 0.62);
+      d = smin(d, ell(ax, y, z, 0, 0.9, 0.3, 0.46, 0.54, 0.38), 0.16);
+      d = smin(d, ell(ax, y, z, 0, 1.68, 0.16, 0.9, 0.76, 0.78), 0.16);
+      d = smin(d, ell(ax, y, z, 0.6, 1.5, 0.42, 0.34, 0.26, 0.32), 0.12);
+      d = smin(d, ell(ax, y, z, 0, 1.46, 0.86, 0.3, 0.22, 0.2), 0.1);
+      // 긴 귀
+      d = smin(d, cone(ax, y, z, 0.38, 2.1, 0.0, 0.46, 3.32, -0.14, 0.24, 0.17), 0.08);
+      d = smin(d, ell(ax, y, z, 0.28, 0.14, 0.62, 0.24, 0.16, 0.3), 0.08);      // 앞발
+      d = smin(d, ell(ax, y, z, 0.5, 0.14, 0.18, 0.26, 0.16, 0.46), 0.1);       // 뒷발
+      d = smin(d, ell(x, y, z, 0, 0.42, -0.72, 0.3, 0.3, 0.3), 0.1);            // 솜꼬리
+      return d;
+    },
+    paint(x, y, z) {
+      const ax = Math.abs(x);
+      const W = col("#F1ECFA"), L = col("#CFC4EA"), P = col("#FFA9C8"), B = col("#FF9CB8");
+      let r = W.clone();
+      r = mix(r, L, clamp((0.9 - y) * 0.35, 0, 0.5) + clamp((z + 0.2) * -0.25, 0, 0.25));
+      r = mix(r, col("#FFFFFF"), Math.max(soft(ell(ax, y, z, 0, 0.9, 0.62, 0.44, 0.6, 0.36), 0.2), soft(ell(ax, y, z, 0, 1.44, 1.05, 0.34, 0.26, 0.26), 0.14)));
+      if (y > 2.2) r = mix(r, P, soft(cone(ax, y, z, 0.4, 2.2, 0.12, 0.46, 3.2, 0.0, 0.13, 0.09), 0.1) * (z > -0.02 ? 1 : 0));
+      r = mix(r, B, soft(ell(ax, y, z, 0.62, 1.5, 0.7, 0.18, 0.11, 0.14), 0.1) * 0.6);
+      return r;
+    },
+    bounds: [[-1.5, -0.3, -1.3], [1.6, 3.6, 1.4]],
+    face: { eye: [0.4, 1.74, 0.86], nose: [0, 1.56, 1.06], eyeScale: [0.17, 0.22, 0.1], iris: "#7C66C9", teeth: true },
+  },
+};
+
+/* ── 조립 · 렌더 ──────────────────────────────────────── */
+const STEP = 0.03;
+const t0 = performance.now();
+const info = {};
+const W = 1500, H = 620;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1.5);
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#141D33");
+const camera = new THREE.PerspectiveCamera(26, W / H, 0.1, 60);
+camera.position.set(0, 2.9, 14.5);
+camera.lookAt(0, 1.5, 0);
+
+const eyeMat = new THREE.MeshStandardMaterial({ color: "#1D1A2A", roughness: 0.15, metalness: 0.1 });
+const white = new THREE.MeshBasicMaterial({ color: "#ffffff" });
+const tubeMesh = (g, pts, r, color) => g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p) => V(...p))), 20, r, 8, false), new THREE.MeshStandardMaterial({ color, roughness: 0.6 })));
+
+function build(kind, offsetX) {
+  const A = ANIMALS[kind];
+  const { positions, indices } = surfaceNets(A.sdf, A.bounds[0], A.bounds[1], STEP);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  const nrm = [], cols = [], e = 0.01;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    const n = V(A.sdf(x + e, y, z) - A.sdf(x - e, y, z), A.sdf(x, y + e, z) - A.sdf(x, y - e, z), A.sdf(x, y, z + e) - A.sdf(x, y, z - e)).normalize();
+    nrm.push(n.x, n.y, n.z);
+    const c = A.paint(x, y, z);
+    cols.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
+  const g = new THREE.Group();
+  g.position.x = offsetX;
+  g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 })));
+
+  const f = A.face;
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), eyeMat);
+    eye.scale.set(...f.eyeScale); eye.position.set(s * f.eye[0], f.eye[1], f.eye[2]); g.add(eye);
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.MeshStandardMaterial({ color: f.iris, roughness: 0.3, transparent: true, opacity: 0.7 }));
+    iris.scale.set(f.eyeScale[0] * 0.68, f.eyeScale[1] * 0.46, 0.03); iris.position.set(s * f.eye[0], f.eye[1] - 0.09, f.eye[2] + 0.09); g.add(iris);
+    const hi = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), white);
+    hi.scale.set(0.06, 0.065, 0.03); hi.position.set(s * f.eye[0] - 0.05, f.eye[1] + 0.1, f.eye[2] + 0.1); g.add(hi);
+    const hi2 = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), white);
+    hi2.scale.set(0.026, 0.026, 0.02); hi2.position.set(s * f.eye[0] + 0.06, f.eye[1] - 0.1, f.eye[2] + 0.12); g.add(hi2);
+  }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), new THREE.MeshStandardMaterial({ color: f.bigNose ? "#2A2028" : "#F27C9A", roughness: 0.35 }));
+  nose.scale.set(f.bigNose ? 0.14 : 0.08, f.bigNose ? 0.1 : 0.055, 0.06); nose.position.set(...f.nose); g.add(nose);
+  const [nx, ny, nz] = f.nose;
+  tubeMesh(g, [[0, ny - 0.04, nz], [0, ny - 0.13, nz + 0.005]], 0.012, "#B5527A");
+  tubeMesh(g, [[0, ny - 0.13, nz + 0.005], [-0.08, ny - 0.19, nz - 0.02], [-0.17, ny - 0.19, nz - 0.07]], 0.012, "#B5527A");
+  tubeMesh(g, [[0, ny - 0.13, nz + 0.005], [0.08, ny - 0.19, nz - 0.02], [0.17, ny - 0.19, nz - 0.07]], 0.012, "#B5527A");
+  if (f.teeth) for (const dx of [-0.028, 0.028]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.03), new THREE.MeshStandardMaterial({ color: "#fff", roughness: 0.4 })); t.position.set(dx, ny - 0.22, nz - 0.02); g.add(t); }
+  if (kind !== "dog") for (const s of [-1, 1]) for (const [dy, dz] of [[0.1, 0], [0, 0.02], [-0.1, 0.04]])
+    tubeMesh(g, [[s * 0.3, ny - 0.02 + dy * 0.2, nz - 0.1], [s * 0.72, ny + dy * 0.9, nz - 0.14 + dz], [s * 1.08, ny + dy * 1.6, nz - 0.3 + dz]], 0.008, "#FFFFFF");
+  scene.add(g);
+  info[kind] = { verts: positions.length / 3, tris: indices.length / 3 };
+}
+
+build("cat", -4.1);
+build("dog", 0);
+build("rabbit", 4.1);
+
+scene.add(new THREE.HemisphereLight("#DCE6FF", "#B08A66", 1.5));
+const key = new THREE.DirectionalLight("#FFE6C0", 2.7); key.position.set(3.5, 5, 6); scene.add(key);
+const fill = new THREE.DirectionalLight("#FFD7B0", 0.9); fill.position.set(-4, 2, 6); scene.add(fill);
+const rim = new THREE.DirectionalLight("#9BB6FF", 1.0); rim.position.set(-4, 3, -4); scene.add(rim);
+
+renderer.render(scene, camera);
+info.ms = Math.round(performance.now() - t0);
+window.__info = info;
+window.__done = true;
+</script>

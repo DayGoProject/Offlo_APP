@@ -51,7 +51,8 @@
             "./assets/fonts/FamiljenGrotesk-Variable.ttf"
           ]
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

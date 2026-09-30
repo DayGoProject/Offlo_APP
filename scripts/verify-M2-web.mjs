@@ -150,7 +150,7 @@ try {
   check(true, "/foundation 은 로그인 없이 열림");
 
   /* 4. 폴더 단위 가드 — (app)/ 아래 다른 경로도 막힌다 (M5: 결과 · 코치 채팅 추가) */
-  for (const protectedPath of ["/history", "/more", "/analysis", "/result/any-id", "/chat/any-id"]) {
+  for (const protectedPath of ["/history", "/more", "/analysis", "/garden", "/result/any-id", "/chat/any-id"]) {
     await page.goto(`${URL}${protectedPath}`, { waitUntil: "networkidle", timeout: 60_000 });
     await page.getByTestId("login-screen").waitFor({ state: "visible", timeout: 30_000 });
     const landed = new globalThis.URL(page.url()).pathname;

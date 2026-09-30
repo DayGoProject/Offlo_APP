@@ -28,6 +28,7 @@ export async function readGarden(uid: string): Promise<GardenSnapshot> {
         ? {
             type: (animalData?.type as AnimalTypeId | undefined) ?? null,
             streak: typeof animalData?.streak === "number" ? animalData.streak : 0,
+            lastAnalysisDate: typeof animalData?.lastAnalysisDate === "string" ? animalData.lastAnalysisDate : null,
           }
         : null,
     };

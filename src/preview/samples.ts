@@ -8,7 +8,7 @@
 import type { DashboardData } from "@/components/dashboard/DashboardView";
 import type { AnalysisRecords } from "@/logic/analysis";
 import type { ChatItem } from "@/logic/chat";
-import type { Analysis, AnalysisSummary, Goal } from "@/services/api-types";
+import type { Analysis, AnalysisSummary, GardenSnapshot, Goal } from "@/services/api-types";
 
 export const SAMPLE_NOW = new Date(2026, 8, 17, 10, 0, 0);
 export const SAMPLE_NAME = "지우";
@@ -77,7 +77,7 @@ const SAMPLE_GOALS: Goal[] = [
 export const DASHBOARD_READY: DashboardData = {
   analyses: SAMPLE_ANALYSES,
   goals: SAMPLE_GOALS,
-  garden: { totalDetoxMinutes: 1450, animal: { type: "cat", streak: 12 } },
+  garden: { totalDetoxMinutes: 1450, animal: { type: "cat", streak: 12, lastAnalysisDate: "2026-09-17" } },
   tip: "잠들기 1시간 전에는 휴대폰을 거실에 두고 들어가 보세요. 밤 시간 사용량이 가장 크게 줄어드는 습관이에요.",
 };
 
@@ -197,3 +197,24 @@ export const CHAT_MESSAGES: ChatItem[] = [
   },
   { role: "user", text: "어제 캡처도 같이 봐 주세요", imageUri: SAMPLE_SCREENSHOT },
 ];
+
+/* ── M6 · 정원 탭 ─────────────────────────────────────────────── */
+
+/** 기준 시각 — KST 2026-09-17 10:00. 기기 시간대와 무관하게 서버 기준 날짜가 같다 */
+export const GARDEN_NOW = Date.UTC(2026, 8, 17, 1, 0, 0);
+
+/** 상태별 샘플 — 마지막 분석일이 기준일과 며칠 떨어졌는지가 동물 상태를 정한다 (logic/garden.ts) */
+export const GARDEN_SAMPLES: Record<string, GardenSnapshot> = {
+  /** 오늘 분석함 → fed */
+  fed: { totalDetoxMinutes: 1450, animal: { type: "cat", streak: 12, lastAnalysisDate: "2026-09-17" } },
+  /** 어제까지 이어짐 → peckish */
+  peckish: { totalDetoxMinutes: 700, animal: { type: "dog", streak: 8, lastAnalysisDate: "2026-09-16" } },
+  /** 3일 전 → starving (서버 연속 기록 값은 그대로 30 — 다음 분석에서 1로 돌아간다) */
+  starving: { totalDetoxMinutes: 3100, animal: { type: "rabbit", streak: 30, lastAnalysisDate: "2026-09-14" } },
+  /** 방금 골랐고 분석 기록 없음 → egg */
+  egg: { totalDetoxMinutes: 60, animal: { type: "cat", streak: 0, lastAnalysisDate: null } },
+  /** 가입 직후 — 동물 미선택 */
+  none: { totalDetoxMinutes: 0, animal: null },
+  /** 두 성장이 모두 마지막 단계 */
+  legend: { totalDetoxMinutes: 10200, animal: { type: "cat", streak: 130, lastAnalysisDate: "2026-09-17" } },
+};

@@ -46,6 +46,21 @@ const SCREENS: { path: string; title: string; states: readonly { state: string; 
     ],
   },
   {
+    path: "/preview/garden",
+    title: "정원 (정원 탭)",
+    states: [
+      { state: "fed", label: "배부름 — 오늘 분석함" },
+      { state: "peckish", label: "출출함 — 어제까지 이어짐" },
+      { state: "starving", label: "굶주림 — 연속 기록이 끊김" },
+      { state: "egg", label: "알 — 분석 기록 없음" },
+      { state: "none", label: "동물 미선택" },
+      { state: "legend", label: "마지막 단계 (전설 · 고목나무)" },
+      { state: "save-error", label: "동물 저장 실패", },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
     path: "/preview/chat",
     title: "AI 코치 채팅",
     states: [
