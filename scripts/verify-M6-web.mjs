@@ -17,6 +17,7 @@
  *   - 장면(6-2) — 방 · 동물 · 식물이 그려지는가 · 상태별 말풍선 대사 · 굶주리면 방이 가라앉는가
  *   - **3D 동물(6-2b)** — 투명 캔버스 1개가 뜨고(`pet-3d-ready`) SVG 폴백은 빠진다 · 동물을 누르면 하트가 올라온다 · 출출함 → 배부름으로 바뀌면 먹는 연출이 돈다
  *     · 시스템 "동작 줄이기"에서는 SVG 폴백이 대신 그려진다
+ *   - **효과음** — 누르면 종 · 상태에 맞는 소리 파일이 불린다(재생 호출을 가로채 확인 — 귀로 듣지는 못한다) · 먹는 연출에서 eat.wav · 소리 끄기 · 선택 저장
  *   - **살아 있는가** — 동물이 움직이는 프레임이 실제로 달라지는가(정지 화면 금지) · 정지 모드 · 시스템 "동작 줄이기"에서는 멈추는가
  *   - 식물 썸네일(AVIF) 로드 · 숫자는 Familjen Grotesk · 바탕 #040508
  *   - 빈 상태(미선택) · 스켈레톤 · 한국어 에러 + 다시 시도 · 가로 넘침 없음 · 콘솔 에러 0
@@ -101,6 +102,16 @@ const context = await browser.newContext({
   timezoneId: "Asia/Seoul",
   locale: "ko-KR",
 });
+// 효과음 — 소리는 들을 수 없으니 재생 호출(HTMLMediaElement.play)을 가로채 어떤 파일이 불렸는지 본다
+await context.addInitScript(() => {
+  window.__plays = [];
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function (...a) {
+    window.__plays.push(String(this.currentSrc || this.src));
+    return play.apply(this, a);
+  };
+});
+const playedFiles = (page) => page.evaluate(() => window.__plays.map((s) => s.split("/").pop()));
 
 /** 화면을 열고 콘솔 에러를 모은다. rootTestId가 보일 때까지 기다린다 */
 async function open(path, rootTestId) {
@@ -375,10 +386,10 @@ try {
   {
     const scene = await import(pathToFileURL(join(ROOT, "src", "logic", "scene.ts")).href);
     const cases = [
-      { state: "fed", cond: "fed", type: "cat" },
-      { state: "peckish", cond: "peckish", type: "dog" },
-      { state: "starving", cond: "starving", type: "rabbit" },
-      { state: "egg", cond: "egg", type: "cat" },
+      { state: "fed", cond: "fed", type: "cat", sound: "cat_happy.wav" },
+      { state: "peckish", cond: "peckish", type: "dog", sound: "dog_happy.wav" },
+      { state: "starving", cond: "starving", type: "rabbit", sound: "rabbit_sad.wav" }, // 굶주리면 쓰다듬어도 시무룩한 소리
+      { state: "egg", cond: "egg", type: "cat", sound: "egg_knock.wav" },
     ];
     /** 동물이 있는 영역만 잘라 찍는다 — 말풍선(위쪽) · 식물(왼쪽, 이미지가 늦게 뜬다)이 끼어들지 않게 */
     const petClip = async (page) => {
@@ -386,7 +397,7 @@ try {
       return { x: box.x + box.width * 0.38, y: box.y + box.height * 0.44, width: box.width * 0.5, height: box.height * 0.5 };
     };
 
-    for (const { state, cond, type } of cases) {
+    for (const { state, cond, type, sound } of cases) {
       const { page, errors } = await open(`/preview/garden?state=${state}`, "garden");
       const stage = page.getByTestId("pet-stage");
       await stage.waitFor({ state: "visible" });
@@ -424,6 +435,8 @@ try {
       await page.waitForTimeout(700);
       const after = heartPixels(Buffer.from(await page.screenshot({ clip })));
       check(after > before + 40, `장면(${state}) · 동물을 누르면 하트가 올라온다`, `하트 픽셀 ${before} → ${after}`);
+      const played = await playedFiles(page);
+      check(played.length === 1 && played[0] === sound, `장면(${state}) · 누르면 ${sound} 효과음이 난다`, played.join(" · ") || "재생 없음");
       await page.screenshot({ path: join(OUT_DIR, `M6-scene-${state}-pet.png`) });
 
       check(errors.length === 0, `장면(${state}) · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
@@ -492,7 +505,29 @@ try {
       await page.waitForTimeout(3000); // 연출(3.6초)이 끝난 뒤
       const done = await page.screenshot({ clip: wide });
       check(changedPixels(eating, done) > 30_000, "먹는 연출 · 끝나면 다시 고개를 든다", `달라진 픽셀 ${changedPixels(eating, done)}`);
+      const eatSounds = (await playedFiles(page)).filter((f) => f === "eat.wav");
+      check(eatSounds.length === 1, "먹는 연출 · 먹는 소리(eat.wav)가 한 번 난다", `${eatSounds.length}번`);
       check(errors.length === 0, "먹는 연출 · 콘솔 에러 0", errors.join(" | ").slice(0, 240));
+      await page.close();
+    }
+
+    // 소리 끄기 — 스피커 버튼을 누르면 효과음이 나지 않고 선택이 기기에 남는다 (확인 뒤 다시 켠다 — 같은 브라우저 문맥이라 다음 화면에 새지 않게)
+    {
+      const { page, errors } = await open("/preview/garden?state=fed", "garden");
+      check(await waitFor3d(page), "소리 끄기 · 3D 동물이 그려짐");
+      await page.waitForTimeout(500);
+      check(await page.getByTestId("pet-sound-toggle").isVisible(), "소리 끄기 · 스피커 버튼이 보임");
+      await page.getByTestId("pet-sound-toggle").click();
+      await page.getByTestId("pet-touch").click();
+      await page.waitForTimeout(900);
+      check((await playedFiles(page)).length === 0, "소리 끄기 · 끈 뒤 누르면 소리가 나지 않는다");
+      check((await page.evaluate(() => localStorage.getItem("offlo:pet-sound"))) === "0", "소리 끄기 · 선택이 기기에 저장됨");
+      await page.getByTestId("pet-sound-toggle").click(); // 다시 켠다
+      await page.getByTestId("pet-touch").click();
+      await page.waitForTimeout(900);
+      check((await playedFiles(page)).length === 1, "소리 끄기 · 다시 켜면 소리가 난다");
+      check((await page.evaluate(() => localStorage.getItem("offlo:pet-sound"))) === "1", "소리 끄기 · 켠 선택도 저장됨");
+      check(errors.length === 0, "소리 끄기 · 콘솔 에러 0", errors.join(" | ").slice(0, 240));
       await page.close();
     }
 

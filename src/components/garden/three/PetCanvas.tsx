@@ -24,6 +24,7 @@ function Pet({
   petSignal = 0,
   layout = VIEWER_LAYOUT,
   onReady,
+  onEvent,
   interactive = false,
 }: PetCanvasProps) {
   const gltf = useLoader(GLTFLoader, PET_MODELS[type]);
@@ -33,6 +34,9 @@ function Pet({
   const readied = useRef(false);
 
   useEffect(() => () => scene.dispose(), [scene]);
+  useEffect(() => {
+    scene.setEventHandler(onEvent ?? null);
+  }, [scene, onEvent]);
   // 정지 모드(demand)는 값이 바뀔 때만 다시 그린다
   useEffect(() => {
     invalidate();

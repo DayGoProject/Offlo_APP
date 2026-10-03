@@ -97,6 +97,26 @@ export function CloseIcon({ color, size = 13 }: IconProps) {
   );
 }
 
+/** 소리 켜짐 — 스피커 + 음파 (16 뷰박스) */
+export function SoundOnIcon({ color, size = 16 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <Path d="M2.4 6.2h2.1L8 3.4v9.2L4.5 9.8H2.4z" stroke={color} strokeWidth={1.2} strokeLinejoin="round" />
+      <Path d="M10.4 6a2.9 2.9 0 0 1 0 4M12.2 4.4a5.3 5.3 0 0 1 0 7.2" stroke={color} strokeWidth={1.2} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 소리 꺼짐 — 스피커 + 가위표 (16 뷰박스) */
+export function SoundOffIcon({ color, size = 16 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <Path d="M2.4 6.2h2.1L8 3.4v9.2L4.5 9.8H2.4z" stroke={color} strokeWidth={1.2} strokeLinejoin="round" />
+      <Path d="M10.6 6.2l3 3.6M13.6 6.2l-3 3.6" stroke={color} strokeWidth={1.2} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 /** 뒤로 — 왼쪽 꺾쇠 */
 export function BackIcon({ color, size = 20 }: IconProps) {
   return (

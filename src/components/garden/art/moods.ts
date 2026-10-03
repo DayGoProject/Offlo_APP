@@ -42,6 +42,12 @@ export interface Mood {
   gazeY: number;
   /** 깜빡임 속도 배율 */
   blinkSpeed: number;
+  /** (3D) 앞다리가 힘없이 뒤로 처지는 각도(rad) — 굶주림 */
+  legSag: number;
+  /** (3D) 앞발 하나를 들고 톡톡 조르는 정도 0~1 — 출출 */
+  beg: number;
+  /** (3D) 앉아서 체중을 옮기는 앞다리 흔들림(rad) */
+  shift: number;
 }
 
 const BASE: Mood = {
@@ -63,6 +69,9 @@ const BASE: Mood = {
   gazeX: 0,
   gazeY: 0,
   blinkSpeed: 1,
+  legSag: 0,
+  beg: 0,
+  shift: 0.035,
 };
 
 export function moodFor(condition: PetCondition, anxious = false): Mood {
@@ -81,6 +90,7 @@ export function moodFor(condition: PetCondition, anxious = false): Mood {
         gazeX: -3,
         gazeY: 3.5,
         blinkSpeed: anxious ? 1.5 : 1,
+        beg: anxious ? 1.1 : 0.9,
       };
     case "starving":
       return {
@@ -101,6 +111,8 @@ export function moodFor(condition: PetCondition, anxious = false): Mood {
         slump: 6,
         gazeY: 4,
         blinkSpeed: 0.6,
+        legSag: 0.14,
+        shift: 0.012,
       };
     default:
       // egg · none — 몸이 없다. 알은 자기 흔들림을 따로 쓴다

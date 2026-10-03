@@ -17,6 +17,7 @@
  *   2. [정지] 동물이 있으면 방 장면(pet-stage)이 그려진다 · 밥 주기 버튼(배부름이 아닐 때) → 분석 탭 → 정원
  *   3. [애니메이션] **화면이 실제로 움직인다** (3D 클레이 동물 · expo-gl — 웹 검증이 못 보는 부분)
  *      + 동물을 누르면 하트가 올라온다 (하트는 3D 장면에서만 나온다 — 3D가 실제로 그려졌다는 증거이기도 하다. 저장 · 기록은 없는 화면 효과)
+ *      + 같은 탭에서 효과음이 재생된다 (`dumpsys audio`에 이 앱의 24kHz 모노 AudioTrack이 started — 귀로 듣지는 못하지만 소리가 실제로 나갔다는 증거)
  *   4. 앱 생존 · JS 에러 · 네이티브 크래시 0
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -152,8 +153,15 @@ function heartPixels(rgb) {
 }
 /** 화면을 누른 뒤 기기 안에서 바로 캡처한다 — adb 왕복 지연 없이 하트가 떠 있는 순간을 잡는다 */
 function tapThenCap(x, y, afterMs = 450) {
-  adb(["shell", `input tap ${x} ${y}; sleep ${afterMs / 1000}; screencap -p /sdcard/offlo-tap.png`]);
+  // 같은 셸에서 탭 → (소리가 나는 동안) 오디오 재생 상태를 덤프 → 캡처. 효과음은 0.4~0.7초라 바로 잡아야 한다
+  adb(["shell", `input tap ${x} ${y}; sleep 0.25; dumpsys audio > /sdcard/offlo-audio.txt; sleep ${(afterMs - 250) / 1000}; screencap -p /sdcard/offlo-tap.png`]);
   return adb(["exec-out", "cat", "/sdcard/offlo-tap.png"], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 }).stdout;
+}
+/** 방금 탭에서 이 앱의 24kHz 모노 AudioTrack(우리 효과음 WAV)이 재생 중(started)이었는가 — 귀로 듣지는 못해도 "실제로 소리가 나갔다"는 증거 */
+function appAudioStarted() {
+  const pid = (adb(["shell", "pidof", PACKAGE]).stdout ?? "").trim().split(/\s+/)[0];
+  const dump = adb(["exec-out", "cat", "/sdcard/offlo-audio.txt"]).stdout ?? "";
+  return Boolean(pid) && new RegExp(`u/pid:\\d+/${pid} state:started[^\\n]*sampleRate=24000`).test(dump);
 }
 /** 두 영역이 다른 픽셀 수 */
 function diffCount(a, b) {
@@ -286,6 +294,7 @@ try {
     const png = tapThenCap(x1 + Math.round(w * 0.55), y1 + Math.round(h * 0.72));
     const after = heartPixels(region(png, clip));
     check(after > before + 40, "동물을 누르면 하트가 올라온다 (3D 렌더 · 탭 판정)", `하트 픽셀 ${before} → ${after}`);
+    check(appAudioStarted(), "동물을 누르면 효과음이 실제로 재생된다 (24kHz 모노 AudioTrack started)");
     shot("M6-android-garden-pet.png", png);
   }
 

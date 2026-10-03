@@ -8,13 +8,13 @@ import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 import { moodFor, type Mood } from "@/components/garden/art/moods";
 import type { PetCondition } from "@/logic/garden";
-import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
+import { ANIMAL_STAGES, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 
 import { makeAura, makeCrown, makeScarf, type Aura } from "./accessories";
 import { makeEgg, type Egg } from "./egg";
 import { STAGE_LOOK } from "./growth";
 import { makeBowl, makeHearts, type Bowl, type Hearts } from "./props3d";
-import { applyRig, makeRig, type Action, type Rig } from "./rig";
+import { ADULT_LOOK, applyRig, makeRig, type Action, type Look, type Rig } from "./rig";
 
 /** 밥 먹는 연출 길이(초) · 쓰다듬기 한 번이 이어지는 길이 */
 export const EAT_DURATION = 3.6;
@@ -22,6 +22,13 @@ export const PET_DURATION = 1.7;
 
 /** 스크린샷용 — 동작의 한 순간을 붙잡아 둔다 */
 export type HoldAction = "eat" | "pet" | null;
+
+/**
+ * 장면이 "지금 시작했다"고 알리는 일 — 효과음이 화면과 같은 순간에 나도록 장면이 직접 알린다
+ * (다른 탭에 가 있어 프레임 루프가 멈춘 동안엔 시작하지 않으니 소리도 나지 않고, 돌아오면 그때 난다).
+ *  pet 쓰다듬기 · knock 알 두드리기 · eat 밥 먹기 · hatch 부화 · stageUp 단계 상승
+ */
+export type PetEvent = "pet" | "knock" | "eat" | "hatch" | "stageUp";
 
 export interface FrameInput {
   stage: AnimalStatus;
@@ -66,7 +73,21 @@ export class PetScene {
   private heldHearts = false;
   private moodKey = "";
   private mood: Mood = moodFor("fed", false);
+  /** 지금 그려지는 체형 — 단계가 바뀌면 목표 체형으로 부드럽게 풀린다 */
+  private readonly lookNow: Look = { ...ADULT_LOOK, body: [1, 1, 1] };
+  private lookSnapped = false;
+  private lastPetSound = -99;
   private readonly tmp = new Vector3();
+
+  private eventHandler: ((event: PetEvent) => void) | null = null;
+
+  /** 일이 시작될 때 불릴 함수를 정한다 (정지 화면에서는 불리지 않는다) */
+  setEventHandler(handler: ((event: PetEvent) => void) | null): void {
+    this.eventHandler = handler;
+  }
+  private onEvent(event: PetEvent): void {
+    this.eventHandler?.(event);
+  }
 
   constructor(kind: AnimalTypeId, source: Object3D) {
     // GLB 장면은 useLoader가 캐시해 공유한다 — 장신구를 뼈대에 붙이므로 뼈대까지 복제해 이 장면 전용으로 쓴다
@@ -143,17 +164,29 @@ export class PetScene {
     const isEgg = stage === "egg";
 
     // 들어온 요청을 이 프레임의 시각으로 시작한다 (정지 화면에서는 무시)
-    if (this.feedRequested && !still) this.eatStart = t;
+    if (this.feedRequested && !still && !isEgg) {
+      this.eatStart = t;
+      this.onEvent("eat");
+    }
     if (this.petRequested && !still) {
       if (t >= this.petUntil) this.petStart = t;
       this.petUntil = t + PET_DURATION;
+      // 이어서 마구 누를 때 소리가 겹쳐 시끄럽지 않게 — 0.8초에 한 번
+      if (t - this.lastPetSound > 0.8) {
+        this.lastPetSound = t;
+        this.onEvent(isEgg ? "knock" : "pet");
+      }
     }
     this.feedRequested = false;
     this.petRequested = false;
 
-    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다)
+    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다). 올라갈 때만 소리: 알에서는 부화, 그 밖엔 종소리
     if (this.stage !== stage) {
       const first = this.stage === null;
+      if (!first && !still) {
+        const order = (s: AnimalStatus) => ANIMAL_STAGES.findIndex((x) => x.status === s);
+        if (order(stage) > order(this.stage!)) this.onEvent(this.stage === "egg" ? "hatch" : "stageUp");
+      }
       this.stage = stage;
       if (!first && !still) this.popStart = t;
       if (first || still) this.scale = look.scale;
@@ -165,6 +198,15 @@ export class PetScene {
       this.aura.group.visible = look.aura;
     }
     this.scale = still ? look.scale : this.scale + (look.scale - this.scale) * (1 - Math.exp(-Math.min(dt, 0.1) * 9));
+    // 체형도 같이 — 아기 → 성장 중 → 성체로 자랄 때 머리 · 몸 · 꼬리의 비율이 연속으로 풀린다 (처음 · 정지 화면은 바로)
+    const kLook = still || !this.lookSnapped ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 5);
+    this.lookSnapped = true;
+    const cur = this.lookNow;
+    cur.headScale += (look.headScale - cur.headScale) * kLook;
+    cur.eyeScale += (look.eyeScale - cur.eyeScale) * kLook;
+    cur.ear += (look.ear - cur.ear) * kLook;
+    cur.tail += (look.tail - cur.tail) * kLook;
+    for (let i = 0; i < 3; i++) cur.body[i] += (look.body[i] - cur.body[i]) * kLook;
     const pop = t - this.popStart;
     const popK = pop >= 0 && pop < 1 ? Math.exp(-pop * 5) * Math.sin(pop * 16) * 0.13 : 0;
     this.stageGroup.scale.setScalar(this.scale * (1 + popK));
@@ -191,7 +233,7 @@ export class PetScene {
         this.mood = moodFor(input.condition, input.anxious);
       }
       const act: Action = { eat, eatT: eatAge, pet, petT };
-      applyRig(this.rig, this.mood, t, act, { headScale: look.headScale, eyeScale: look.eyeScale });
+      applyRig(this.rig, this.mood, t, act, this.lookNow);
     }
     if (look.aura) this.aura.update(t);
 

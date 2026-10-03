@@ -9,7 +9,7 @@
   3. 뼈대 + 스키닝 — 부위(몸통 · 머리 · 귀 · 꼬리)별 SDF 거리로 가중치를 계산한다
   4. 눈 · 코 · 입 · 수염은 머리 뼈대에 붙는 별도 부품 (눈은 깜빡이려고 EyeL · EyeR 묶음)
 
-  뼈대 이름 규약 (앱의 리그 `rig.ts`가 이 이름으로 찾는다): Root · Body · Head · EarL/EarR(+ EarL2/EarR2) · Tail1~3 · EyeL · EyeR
+  뼈대 이름 규약 (앱의 리그 `rig.ts`가 이 이름으로 찾는다): Root · Body · Head · EarL/EarR(+ EarL2/EarR2) · Tail1~3 · ForeL/ForeR(앞다리) · PawL/PawR(앞발) · EyeL · EyeR
   L = +x (동물의 왼쪽이 화면 오른쪽). 앞은 +z, 위는 +y. 발바닥이 y=0.
 -->
 <script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
@@ -86,6 +86,29 @@ function surfaceNets(sdf, min, max, step) {
   return { positions, indices };
 }
 
+/* ── 앞다리 ────────────────────────────────────────────────
+   예전엔 몸통 부위의 곧은 기둥(캡슐) 하나였다 — 뻣뻣해 보이고 구부릴 뼈대도 없었다.
+   이제 어깨 → 팔꿈치 → 손목(둥근 원뿔 둘, 손목은 앞으로 기울어 앉은 자세) + 앞발(타원체 + 발가락 셋)이고,
+   앞다리(Fore)와 앞발(Paw)이 각자 뼈대를 가진다. 좌우 대칭(|x|)이라 한쪽만 적는다. */
+function makeLeg({ S, E, W, rs, re, rw, paw, toes }) {
+  const fore = (ax, y, z) => smin(
+    cone(ax, y, z, S[0], S[1], S[2], E[0], E[1], E[2], rs, re),
+    cone(ax, y, z, E[0], E[1], E[2], W[0], W[1], W[2], re, rw), 0.06);
+  const pawD = (ax, y, z) => {
+    let d = ell(ax, y, z, paw[0], paw[1], paw[2], paw[3], paw[4], paw[5]);
+    for (const [dx, dz, r] of toes) d = smin(d, ell(ax, y, z, paw[0] + dx, paw[1] - 0.025, paw[2] + paw[5] * 0.78 + dz, r, r * 0.8, r * 1.1), 0.04);
+    return d;
+  };
+  return { fore, paw: pawD, joints: { shoulder: S, wrist: W } };
+}
+const TOES = (r) => [[-0.085, 0, r], [0, 0.04, r], [0.085, 0, r]];
+const CAT_LEG = makeLeg({ S: [0.3, 0.92, 0.3], E: [0.33, 0.52, 0.3], W: [0.34, 0.22, 0.43], rs: 0.21, re: 0.17, rw: 0.13, paw: [0.345, 0.095, 0.575, 0.17, 0.105, 0.24], toes: TOES(0.065) });
+const DOG_LEG = makeLeg({ S: [0.31, 0.92, 0.3], E: [0.33, 0.52, 0.3], W: [0.34, 0.22, 0.43], rs: 0.22, re: 0.18, rw: 0.14, paw: [0.345, 0.1, 0.58, 0.19, 0.11, 0.26], toes: TOES(0.07) });
+const RABBIT_LEG = makeLeg({ S: [0.26, 0.84, 0.3], E: [0.28, 0.52, 0.32], W: [0.28, 0.22, 0.43], rs: 0.16, re: 0.13, rw: 0.105, paw: [0.285, 0.1, 0.55, 0.14, 0.095, 0.2], toes: TOES(0.05) });
+
+/** 앞다리 뼈대 위치 — 왼쪽(+x)은 그대로, 오른쪽(-x)은 거울 */
+const legJoints = ({ joints: { shoulder: S, wrist: W } }) => ({ ForeL: S, ForeR: [-S[0], S[1], S[2]], PawL: W, PawR: [-W[0], W[1], W[2]] });
+
 /* ── 세 동물 정의 ─────────────────────────────────────────
    부위(groups)별 SDF를 따로 두고 스무스 합성한다 — 같은 함수를 스키닝 가중치에도 쓴다.
    body · head · ear(|x| 대칭) · tail(한쪽). 발바닥이 y≈0. */
@@ -96,10 +119,10 @@ const ANIMALS = {
         let d = ell(ax, y, z, 0, 0.72, -0.1, 0.62, 0.72, 0.58);
         d = smin(d, ell(ax, y, z, 0.5, 0.36, -0.14, 0.36, 0.38, 0.46), 0.14);
         d = smin(d, ell(ax, y, z, 0, 1.0, 0.28, 0.34, 0.4, 0.3), 0.14);
-        d = smin(d, cap(ax, y, z, 0.32, 0.9, 0.36, 0.32, 0.17, 0.5, 0.19), 0.04);   // 앞다리 기둥 — 작은 스무딩으로 윤곽을 살린다
-        d = smin(d, ell(ax, y, z, 0.32, 0.13, 0.6, 0.23, 0.15, 0.3), 0.05);            // 앞발
         return smin(d, ell(ax, y, z, 0.58, 0.12, 0.2, 0.2, 0.13, 0.36), 0.06);          // 뒷발 — 옆에서 보인다
       },
+      fore: CAT_LEG.fore,
+      paw: CAT_LEG.paw,
       head(ax, y, z) {
         let d = ell(ax, y, z, 0, 1.76, 0.16, 1.0, 0.8, 0.82);
         d = smin(d, ell(ax, y, z, 0.66, 1.58, 0.42, 0.36, 0.26, 0.34), 0.12);
@@ -113,7 +136,7 @@ const ANIMALS = {
         return smin(t, cap(x, y, z, 1.24, 1.0, -0.72, 1.18, 1.4, -0.6, 0.13), 0.1);
       },
     },
-    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.62, 2.2, 0.0], EarR: [-0.62, 2.2, 0.0], Tail1: [0.42, 0.3, -0.5], Tail2: [0.98, 0.42, -0.78], Tail3: [1.24, 1.0, -0.72] },
+    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.62, 2.2, 0.0], EarR: [-0.62, 2.2, 0.0], Tail1: [0.42, 0.3, -0.5], Tail2: [0.98, 0.42, -0.78], Tail3: [1.24, 1.0, -0.72], ...legJoints(CAT_LEG) },
     tailChain: ["Tail1", "Tail2", "Tail3"],
     paint(x, y, z) {
       const ax = Math.abs(x);
@@ -125,7 +148,7 @@ const ANIMALS = {
       const sb = ax > 0.36 && y > 0.4 && y < 1.3 && z < 0.2 ? Math.max(band(y, 0.62, 0.055), band(y, 0.86, 0.055), band(y, 1.1, 0.05)) * clamp((ax - 0.36) * 8, 0, 1) : 0;
       const st = x > 0.5 && z < -0.4 ? Math.max(band(y, 0.5, 0.05), band(y, 0.78, 0.05), band(y, 1.06, 0.045)) : 0;
       r = mix(r, D, Math.max(sh, sb, st) * 0.75);
-      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.62, 0.42, 0.62, 0.36), 0.2), soft(ell(ax, y, z, 0, 1.46, 1.02, 0.4, 0.3, 0.3), 0.16), soft(ell(ax, y, z, 0.32, 0.1, 0.6, 0.26, 0.13, 0.32), 0.07)));
+      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.62, 0.42, 0.62, 0.36), 0.2), soft(ell(ax, y, z, 0, 1.46, 1.02, 0.4, 0.3, 0.3), 0.16), soft(CAT_LEG.fore(ax, y, z), 0.16), soft(CAT_LEG.paw(ax, y, z), 0.1)));
       if (y > 2.2 && z > -0.05) r = mix(r, P, soft(cone(ax, y, z, 0.62, 2.2, 0.12, 0.74, 2.62, 0.02, 0.13, 0.02), 0.12));
       r = mix(r, B, soft(ell(ax, y, z, 0.66, 1.56, 0.7, 0.18, 0.11, 0.14), 0.1) * 0.55);
       return r;
@@ -140,10 +163,10 @@ const ANIMALS = {
         let d = ell(ax, y, z, 0, 0.72, -0.1, 0.62, 0.72, 0.6);
         d = smin(d, ell(ax, y, z, 0.5, 0.36, -0.14, 0.36, 0.38, 0.48), 0.14);
         d = smin(d, ell(ax, y, z, 0, 1.0, 0.28, 0.36, 0.42, 0.32), 0.14);
-        d = smin(d, cap(ax, y, z, 0.32, 0.9, 0.36, 0.32, 0.17, 0.5, 0.19), 0.04);   // 앞다리 기둥 — 작은 스무딩으로 윤곽을 살린다
-        d = smin(d, ell(ax, y, z, 0.32, 0.13, 0.6, 0.23, 0.15, 0.3), 0.05);            // 앞발
         return smin(d, ell(ax, y, z, 0.58, 0.12, 0.2, 0.2, 0.13, 0.36), 0.06);          // 뒷발 — 옆에서 보인다
       },
+      fore: DOG_LEG.fore,
+      paw: DOG_LEG.paw,
       head(ax, y, z) {
         let d = ell(ax, y, z, 0, 1.72, 0.18, 0.94, 0.78, 0.84);
         d = smin(d, ell(ax, y, z, 0, 1.5, 1.0, 0.4, 0.3, 0.42), 0.14);
@@ -155,13 +178,13 @@ const ANIMALS = {
         return smin(t, cap(x, y, z, 0.86, 0.6, -0.86, 1.0, 1.1, -0.8, 0.16), 0.12);
       },
     },
-    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.72, 2.12, 0.02], EarR: [-0.72, 2.12, 0.02], Tail1: [0.3, 0.36, -0.62], Tail2: [0.86, 0.6, -0.86], Tail3: [1.0, 1.1, -0.8] },
+    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.72, 2.12, 0.02], EarR: [-0.72, 2.12, 0.02], Tail1: [0.3, 0.36, -0.62], Tail2: [0.86, 0.6, -0.86], Tail3: [1.0, 1.1, -0.8], ...legJoints(DOG_LEG) },
     tailChain: ["Tail1", "Tail2", "Tail3"],
     paint(x, y, z) {
       const ax = Math.abs(x);
       const G = col("#F2B45E"), C = col("#FFF1D8"), E = col("#B8773F"), B = col("#FF9A8E");
       let r = G.clone();
-      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.66, 0.44, 0.64, 0.38), 0.2), soft(ell(ax, y, z, 0, 1.44, 1.16, 0.44, 0.34, 0.4), 0.18), soft(ell(ax, y, z, 0.32, 0.1, 0.6, 0.26, 0.13, 0.32), 0.07), soft(ell(ax, y, z, 0, 2.12, 0.5, 0.1, 0.4, 0.2), 0.12) * 0.6));
+      r = mix(r, C, Math.max(soft(ell(ax, y, z, 0, 0.9, 0.66, 0.44, 0.64, 0.38), 0.2), soft(ell(ax, y, z, 0, 1.44, 1.16, 0.44, 0.34, 0.4), 0.18), soft(DOG_LEG.paw(ax, y, z), 0.1), soft(ell(ax, y, z, 0.34, 0.26, 0.45, 0.2, 0.3, 0.26), 0.1), soft(ell(ax, y, z, 0, 2.12, 0.5, 0.1, 0.4, 0.2), 0.12) * 0.6));
       r = mix(r, E, soft(cone(ax, y, z, 0.72, 2.12, 0.02, 1.02, 1.42, -0.06, 0.32, 0.2), 0.02) * 0.95);
       r = mix(r, B, soft(ell(ax, y, z, 0.56, 1.5, 0.86, 0.18, 0.11, 0.14), 0.1) * 0.5);
       return r;
@@ -177,10 +200,10 @@ const ANIMALS = {
         let d = ell(ax, y, z, 0, 0.62, -0.1, 0.58, 0.64, 0.6);
         d = smin(d, ell(ax, y, z, 0.5, 0.36, -0.14, 0.38, 0.38, 0.5), 0.14);
         d = smin(d, ell(ax, y, z, 0, 0.94, 0.22, 0.3, 0.36, 0.26), 0.16);
-        d = smin(d, cap(ax, y, z, 0.27, 0.86, 0.34, 0.27, 0.17, 0.47, 0.15), 0.04);
-        d = smin(d, ell(ax, y, z, 0.27, 0.13, 0.58, 0.19, 0.13, 0.26), 0.05);
         return smin(d, ell(ax, y, z, 0.52, 0.12, 0.22, 0.22, 0.13, 0.5), 0.06);
       },
+      fore: RABBIT_LEG.fore,
+      paw: RABBIT_LEG.paw,
       head(ax, y, z) {
         let d = ell(ax, y, z, 0, 1.68, 0.16, 0.9, 0.76, 0.78);
         d = smin(d, ell(ax, y, z, 0.6, 1.5, 0.42, 0.34, 0.26, 0.32), 0.12);
@@ -189,7 +212,7 @@ const ANIMALS = {
       ear: (ax, y, z) => cone(ax, y, z, 0.38, 2.1, 0.0, 0.46, 3.32, -0.14, 0.24, 0.17),
       tail: (x, y, z) => ell(x, y, z, 0, 0.44, -0.86, 0.28, 0.28, 0.28),   // 솜꼬리 — 엉덩이 뒤에 붙는다
     },
-    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.38, 2.1, 0.0], EarL2: [0.42, 2.7, -0.07], EarR: [-0.38, 2.1, 0.0], EarR2: [-0.42, 2.7, -0.07], Tail1: [0, 0.44, -0.86] },
+    joints: { Root: [0, 0, 0], Body: [0, 0.6, -0.05], Head: [0, 1.4, 0.1], EarL: [0.38, 2.1, 0.0], EarL2: [0.42, 2.7, -0.07], EarR: [-0.38, 2.1, 0.0], EarR2: [-0.42, 2.7, -0.07], Tail1: [0, 0.44, -0.86], ...legJoints(RABBIT_LEG) },
     tailChain: ["Tail1"],
     earChain: 2,
     paint(x, y, z) {
@@ -216,12 +239,15 @@ function skinWeights(A, boneNames, x, y, z) {
   const add = (name, v) => { if (v > 1e-4 && boneNames.includes(name)) w.set(name, (w.get(name) ?? 0) + v); };
   const wOf = (d) => Math.exp(-Math.max(d, 0) / TAU);
 
+  const side = x >= 0 ? "L" : "R";
   add("Body", wOf(g.body(ax, y, z)));
   add("Head", wOf(g.head(ax, y, z)));
+  // 앞다리(어깨 뼈대)와 앞발(손목 뼈대) — 좌우로 나눠 붙인다. 어깨 · 손목 근처는 이웃 뼈대와 섞여 구부러진다
+  add(`Fore${side}`, wOf(g.fore(ax, y, z)));
+  add(`Paw${side}`, wOf(g.paw(ax, y, z)));
 
   // 귀 — 좌우로 나눠 붙이고, 토끼는 밑동 → 끝을 두 뼈대로 나눈다
   const we = wOf(g.ear(ax, y, z));
-  const side = x >= 0 ? "L" : "R";
   if (A.earChain === 2) {
     const u = clamp((y - A.joints[`Ear${side}`][1]) / (A.joints[`Ear${side}2`][1] - A.joints[`Ear${side}`][1]), 0, 1);
     add(`Ear${side}`, we * (1 - u));
@@ -265,13 +291,15 @@ function buildAnimal(kind) {
     const ax = Math.abs(x);
     let d = smin(g.body(ax, y, z), g.head(ax, y, z), 0.16);
     d = smin(d, g.ear(ax, y, z), 0.06);
+    d = smin(d, g.fore(ax, y, z), 0.07);
+    d = smin(d, g.paw(ax, y, z), 0.05);
     return smin(d, g.tail(x, y, z), 0.1);
   };
   const { positions, indices } = surfaceNets(sdf, A.bounds[0], A.bounds[1], STEP);
 
   // 뼈대 계층 (월드 위치 → 부모 기준 로컬)
   const J = A.joints;
-  const parentOf = { Body: "Root", Head: "Body", EarL: "Head", EarR: "Head", EarL2: "EarL", EarR2: "EarR", Tail1: "Body", Tail2: "Tail1", Tail3: "Tail2" };
+  const parentOf = { Body: "Root", Head: "Body", EarL: "Head", EarR: "Head", EarL2: "EarL", EarR2: "EarR", Tail1: "Body", Tail2: "Tail1", Tail3: "Tail2", ForeL: "Body", ForeR: "Body", PawL: "ForeL", PawR: "ForeR" };
   const bones = {};
   const boneList = [];
   for (const name of Object.keys(J)) {

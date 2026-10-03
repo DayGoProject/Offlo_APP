@@ -5,25 +5,27 @@
  */
 import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
 
-export interface StageLook {
+import { ADULT_LOOK, type Look } from "./rig";
+
+export interface StageLook extends Look {
   /** 전체 크기 */
   scale: number;
-  /** 머리 배율 — 아기일수록 크다 (chibi → 성체) */
-  headScale: number;
-  /** 눈 배율 */
-  eyeScale: number;
   scarf: boolean;
   crown: boolean;
   aura: boolean;
 }
 
+/**
+ * 단계별 체형 — 아기는 단지 "작은 성체"가 아니라 비율이 다르다: 머리가 크고(1.3) 몸이 짧고 통통하고(높이 0.8 · 폭 1.15) 다리 · 꼬리가 짧고 귀는 머리에 비해 작다.
+ * 자라면서 그 비율이 성체로 풀린다 (단계가 바뀔 때 `PetScene`이 부드럽게 보간한다).
+ */
 export const STAGE_LOOK: Record<AnimalStatus, StageLook> = {
-  egg: { scale: 1, headScale: 1, eyeScale: 1, scarf: false, crown: false, aura: false },
-  baby: { scale: 0.66, headScale: 1.26, eyeScale: 1.12, scarf: false, crown: false, aura: false },
-  growing: { scale: 0.82, headScale: 1.12, eyeScale: 1.05, scarf: false, crown: false, aura: false },
-  adult: { scale: 1, headScale: 1, eyeScale: 1, scarf: false, crown: false, aura: false },
-  enhanced: { scale: 1.04, headScale: 1, eyeScale: 1, scarf: true, crown: false, aura: false },
-  legend: { scale: 1.1, headScale: 1, eyeScale: 1, scarf: true, crown: true, aura: true },
+  egg: { ...ADULT_LOOK, scale: 1, scarf: false, crown: false, aura: false },
+  baby: { scale: 0.7, headScale: 1.32, eyeScale: 1.12, body: [1.15, 0.8, 1.1], ear: 0.95, tail: 0.65, scarf: false, crown: false, aura: false },
+  growing: { scale: 0.84, headScale: 1.14, eyeScale: 1.05, body: [1.07, 0.92, 1.05], ear: 1, tail: 0.85, scarf: false, crown: false, aura: false },
+  adult: { ...ADULT_LOOK, scale: 1, scarf: false, crown: false, aura: false },
+  enhanced: { ...ADULT_LOOK, scale: 1.04, scarf: true, crown: false, aura: false },
+  legend: { ...ADULT_LOOK, scale: 1.1, scarf: true, crown: true, aura: true },
 };
 
 /**
