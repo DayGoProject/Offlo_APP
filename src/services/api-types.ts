@@ -5,7 +5,7 @@
  * sync-shared 대상이 아니다 — 원본 파일에 fetch 코드가 섞여 있어 통째로 복사할 수 없다.
  * 라우트 응답이 바뀌면 여기를 손으로 맞춘다 (서버가 원본이라 어긋나면 런타임에 드러난다).
  */
-import type { AnimalTypeId } from "@/shared/garden-utils";
+import type { AnimalTypeId, PetRecord } from "@/shared/garden-utils";
 
 /* ── 사용자 ─────────────────────────────────────────────────── */
 
@@ -139,7 +139,7 @@ export interface Badge {
   shared: boolean;
 }
 
-export type { AnimalTypeId };
+export type { AnimalTypeId, PetRecord };
 
 /**
  * 정원 상태 — API가 아니라 Firestore `users/{uid}/garden/plant · animal` 문서에서 읽는다 (services/garden.ts).
@@ -154,7 +154,26 @@ export interface GardenSnapshot {
     streak: number;
     /** 마지막으로 밥(일간 분석)을 받은 날 — KST 날짜 키 "2026-09-17". 한 번도 없으면 null */
     lastAnalysisDate: string | null;
+    /** 쓰다듬기 기록(서버) — `date`가 오늘(KST)이 아니면 오늘 횟수는 0이다 (`petTodayCount`). 없으면 빈 기록 */
+    pet: PetRecord;
   } | null;
+}
+
+/** `POST /api/garden/pet` 응답 — 서버가 하루 상한을 강제하고 인정된 몫만 돌려준다 */
+export interface PetResponse {
+  ok: true;
+  /** 이번 요청에서 실제로 인정된 횟수 (상한을 넘은 몫은 버려진다 — 에러가 아니다) */
+  accepted: number;
+  /** 서버가 센 오늘(KST) 날짜 키 */
+  date: string;
+  /** 오늘 인정된 횟수 / 하루 상한 */
+  today: number;
+  cap: number;
+  /** 누적 인정 횟수 = 친밀도 */
+  total: number;
+  level: { level: number; name: string };
+  /** 마지막 레벨이면 null */
+  nextLevel: { level: number; name: string; minTotal: number } | null;
 }
 
 /* ── 알림 ───────────────────────────────────────────────────── */

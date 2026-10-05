@@ -5,7 +5,7 @@
 import type { PetCondition } from "@/logic/garden";
 import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
 
-import type { HoldAction, PetEvent } from "./PetScene";
+import type { HoldAction } from "./PetScene";
 
 export interface CanvasLayout {
   camera: [number, number, number];
@@ -63,8 +63,6 @@ export interface PetCanvasProps {
   active?: boolean;
   /** 모델을 불러오고 첫 프레임을 그린 직후 한 번 */
   onReady?: () => void;
-  /** 쓰다듬기 · 밥 먹기 · 부화 · 단계 상승이 시작되는 순간 (효과음용) */
-  onEvent?: (event: PetEvent) => void;
   /** true면 캔버스가 직접 탭을 받는다 (뷰어). 정원은 스크롤과 다투지 않게 false — 위에 Pressable을 얹는다 */
   interactive?: boolean;
 }

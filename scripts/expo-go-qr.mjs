@@ -35,9 +35,9 @@ const port = flag("--port", "8081");
 const base = `exp://${host}:${port}`;
 
 const TARGETS = [
-  { title: "정원 3D 미리보기", note: "출출한 강아지 · 눌러서 쓰다듬기 · 소리 버튼", url: `${base}/--/preview/garden?state=peckish` },
+  { title: "정원 3D 미리보기 (출출)", note: "출출한 강아지 · 눌러서 쓰다듬기", url: `${base}/--/preview/garden?state=peckish` },
+  { title: "정원 3D 미리보기 (전설)", note: "왕관 · 스카프 · 오라의 고양이", url: `${base}/--/preview/garden?state=legend` },
   { title: "동물 확인 뷰어", note: "고양이 · 강아지 · 토끼 × 성장 단계 × 동작", url: `${base}/--/preview/clay` },
-  { title: "효과음 청음", note: "소리 10개를 하나씩 들어 보기", url: `${base}/--/preview/sound` },
   { title: "앱 처음 화면", note: "로그인 화면까지만 (Expo Go는 Google 로그인 불가)", url: base },
 ];
 

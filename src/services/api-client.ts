@@ -27,6 +27,7 @@ import type {
   GoalStatus,
   NotificationItem,
   PeriodType,
+  PetResponse,
   RankingEntry,
   UpdateGoalInput,
 } from "@/services/api-types";
@@ -337,6 +338,11 @@ export function createApiClient(options: ApiClientOptions) {
       /** 식물 경험치 적립 — 서버가 increment라 다시 보내면 두 번 쌓인다 */
       addPlantExp: (minutes: number) =>
         request<{ ok: true }>("POST", "/api/garden/plant-exp", { body: { minutes } }),
+      /**
+       * 쓰다듬기 기록 — `count`번(1~PET_DAILY_CAP)을 묶어 보낸다. 서버가 하루(KST) 상한까지만 인정하고 `accepted`로 알려 준다.
+       * **재시도하지 않는다** — 두 번 보내면 두 번 반영된다 (실패해도 화면 효과는 이미 났으니 조용히 넘어가도 된다).
+       */
+      pet: (count: number) => request<PetResponse>("POST", "/api/garden/pet", { body: { count } }),
     },
 
     notifications: {

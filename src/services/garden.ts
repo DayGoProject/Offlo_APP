@@ -11,6 +11,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { API_MESSAGES, ApiError, DEFAULT_TIMEOUT_MS } from "@/services/api-client";
 import type { AnimalTypeId, GardenSnapshot } from "@/services/api-types";
 import { db } from "@/services/firebase";
+import { normalizePet } from "@/shared/garden-utils";
 
 export async function readGarden(uid: string): Promise<GardenSnapshot> {
   try {
@@ -29,6 +30,7 @@ export async function readGarden(uid: string): Promise<GardenSnapshot> {
             type: (animalData?.type as AnimalTypeId | undefined) ?? null,
             streak: typeof animalData?.streak === "number" ? animalData.streak : 0,
             lastAnalysisDate: typeof animalData?.lastAnalysisDate === "string" ? animalData.lastAnalysisDate : null,
+            pet: normalizePet(animalData?.pet), // 쓰다듬기 기록 — 서버(`POST /api/garden/pet`)만 쓴다. 없거나 깨졌으면 빈 기록
           }
         : null,
     };

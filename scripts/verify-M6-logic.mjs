@@ -16,6 +16,7 @@
  *   4. 문구 — 굶주림은 "1일부터 다시", 출출은 "이어져요"
  *   5. 성장 진행률 — 식물 7단계 · 동물 6단계 경계 · 마지막 단계
  *   6. 미리보기 샘플이 의도한 상태로 계산되는가
+ *   7. 친밀도(쓰다듬기) — 승인된 수치(하루 5회 · 레벨 5단계 0/10/30/70/130) · 레벨 경계 · 상한 · KST 자정 · 깨진 값 · 두 기기 동시 · 동물 변경 시 초기화
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -201,6 +202,75 @@ const NOW = at(2026, 9, 17, 10, 0);
   // 굶주림 대사는 원망하지 않는다 (기둥 4) — 금지어 표본
   const blame = /(왜 안|나쁜|미워|버렸|죽)/;
   check(!all.flat().some((l) => blame.test(l)), "원망 · 죄책감을 주는 말투가 없다");
+}
+
+/* ── 7. 친밀도(쓰다듬기) 규칙 — 웹 `lib/garden-utils.ts`가 원본 · 서버 `POST /api/garden/pet`이 같은 함수를 쓴다 ───── */
+{
+  const u = await import(pathToFileURL(join(SRC, "shared", "garden-utils.ts")).href);
+  const k = await import(pathToFileURL(join(SRC, "shared", "kst.ts")).href);
+
+  // 승인된 수치(2026-10-05)에서 어긋나지 않았는가 — 바꾸려면 웹 원본 · 설계 문서 8-5 · 모의실험을 같이 고친다
+  check(u.PET_DAILY_CAP === 5, "하루 쓰다듬기 상한 5회 (승인된 수치)", String(u.PET_DAILY_CAP));
+  check(
+    u.AFFECTION_LEVELS.map((l) => l.minTotal).join("/") === "0/10/30/70/130" && u.AFFECTION_LEVELS.length === 5,
+    "친밀도 레벨 5단계 임계값 0/10/30/70/130 (승인된 수치)",
+    u.AFFECTION_LEVELS.map((l) => l.minTotal).join("/"),
+  );
+
+  const lv = (t) => u.getAffectionLevel(t).level;
+  check([0, 9, 10, 29, 30, 69, 70, 129, 130, 99999].map(lv).join(",") === "1,1,2,2,3,3,4,4,5,5", "레벨 경계 — 9→Lv1 · 10→Lv2 · 29→Lv2 · 30→Lv3 · 69→Lv3 · 70→Lv4 · 129→Lv4 · 130→Lv5", [0, 9, 10, 29, 30, 69, 70, 129, 130].map(lv).join(","));
+  check(u.nextAffectionLevel(u.getAffectionLevel(130)) === null && u.nextAffectionLevel(u.getAffectionLevel(0))?.level === 2, "마지막 레벨은 다음이 없다");
+  const r = u.affectionRatio;
+  check(r(0) === 0 && r(5) === 0.5 && r(10) === 0 && r(20) === 0.5 && r(130) === 1 && r(500) === 1, "레벨 안 진행률 — 레벨이 오르면 0으로, 마지막 레벨은 1");
+
+  // 상한 · 인정되는 몫
+  const E = { date: null, today: 0, total: 0 };
+  const T = "2026-10-05";
+  const one = u.applyPetTaps(E, T, 1);
+  check(one.accepted === 1 && one.next.today === 1 && one.next.total === 1 && one.next.date === T, "첫 쓰다듬기 → 오늘 1 · 누적 1");
+  const mid = u.applyPetTaps({ date: T, today: 4, total: 20 }, T, 3);
+  check(mid.accepted === 1 && mid.next.today === 5 && mid.next.total === 21, "오늘 4번 + 3번 요청 → 1번만 인정(상한 5) · 남는 몫은 버림", JSON.stringify(mid.next));
+  const full = u.applyPetTaps({ date: T, today: 5, total: 20 }, T, 2);
+  check(full.accepted === 0 && full.next.today === 5 && full.next.total === 20, "상한을 채웠으면 0 인정 · 누적 그대로 (에러가 아니다)");
+  const many = u.applyPetTaps(E, T, 99);
+  check(many.accepted === 5 && many.next.total === 5, "한 번에 많이 보내도 상한까지만");
+  check(u.applyPetTaps(E, T, 0).accepted === 0 && u.applyPetTaps(E, T, -3).accepted === 0 && u.applyPetTaps(E, T, 2.9).accepted === 2, "0 · 음수 → 0 · 소수는 내림");
+  check(u.applyPetTaps({ date: T, today: 1, total: 1 }, T, 2, 2).accepted === 1, "상한은 인자로 바꿀 수 있다 (테스트용)");
+
+  // 날짜 — KST 자정에 오늘 횟수가 0으로 돌아간다 (기기 시간대와 무관)
+  const yesterday = { date: "2026-10-04", today: 5, total: 50 };
+  check(u.petTodayCount(yesterday, T) === 0 && u.petTodayCount({ date: T, today: 3, total: 9 }, T) === 3, "어제 기록의 오늘 횟수는 0 · 오늘 기록은 그대로");
+  const rolled = u.applyPetTaps(yesterday, T, 5);
+  check(rolled.accepted === 5 && rolled.next.today === 5 && rolled.next.total === 55 && rolled.next.date === T, "새 날이 되면 상한이 다시 찬다 — 누적은 이어서 쌓인다", JSON.stringify(rolled.next));
+  const beforeMidnight = k.kstDateKey(at(2026, 10, 4, 23, 59));
+  const afterMidnight = k.kstDateKey(at(2026, 10, 5, 0, 0));
+  check(beforeMidnight === "2026-10-04" && afterMidnight === "2026-10-05", "KST 23:59 → 10/4 · 00:00 → 10/5 (오늘 횟수가 바뀌는 순간)", `${beforeMidnight} → ${afterMidnight}`);
+  check(k.kstDateKey(at(2026, 10, 5, 8, 59)) === "2026-10-05", "KST 오전 8:59 (UTC로는 전날)도 10/5 — UTC로 자르면 오전 9시에 초기화되던 웹의 옛 버그가 없다");
+
+  // Firestore에서 읽은 값이 깨져 있어도 안전하게
+  const n = u.normalizePet;
+  check(JSON.stringify(n(undefined)) === JSON.stringify(E) && JSON.stringify(n(null)) === JSON.stringify(E) && JSON.stringify(n("x")) === JSON.stringify(E), "pet 필드가 없거나 객체가 아니면 빈 기록");
+  check(JSON.stringify(n({ date: "어제", today: -3, total: "7" })) === JSON.stringify(E), "날짜 형식 오류 · 음수 · 문자열 숫자는 0 / null로");
+  check(n({ date: T, today: 2.7, total: 41.9 }).today === 2 && n({ date: T, today: 2.7, total: 41.9 }).total === 41, "소수는 내림");
+  check(n({ date: T, today: Infinity, total: NaN }).today === 0 && n({ date: T, today: Infinity, total: NaN }).total === 0, "Infinity · NaN은 0");
+
+  // 서버의 "읽고 → 계산 → 쓰기"를 모형으로 두 기기가 동시에 누르는 경우 — 트랜잭션이 직렬화하면 상한을 못 넘는다
+  let doc = { type: "cat", pet: { ...E } };
+  const serverPet = (count) => {
+    const res = u.applyPetTaps(u.normalizePet(doc.pet), T, count);
+    if (res.accepted > 0) doc = { ...doc, pet: res.next };
+    return res.accepted;
+  };
+  const accepted = [serverPet(3), serverPet(3), serverPet(3)];
+  check(accepted.join(",") === "3,2,0" && doc.pet.today === 5 && doc.pet.total === 5, "기기 두 대가 번갈아 3번씩 보내도 합계는 상한 5 (3 + 2 + 0)", accepted.join(","));
+
+  // 동물 변경(reset)은 문서를 통째로 덮어쓰므로 쓰다듬기 기록도 0부터
+  const afterReset = { type: "dog", streak: 0, lastAnalysisDate: null, pet: { date: null, today: 0, total: 0 } };
+  check(JSON.stringify(u.normalizePet(afterReset.pet)) === JSON.stringify(E) && u.getAffectionLevel(afterReset.pet.total).level === 1, "동물 변경 뒤에는 친밀도 Lv1 · 누적 0부터");
+
+  // 미리보기 샘플이 의도한 값으로 읽히는가
+  const today = (name) => u.petTodayCount(GARDEN_SAMPLES[name].animal.pet, k.kstDateKey(GARDEN_NOW));
+  check(today("fed") === 3 && today("peckish") === 0 && today("legend") === 5 && today("egg") === 0, "샘플 — 오늘 횟수: 배부름 3 · 출출(기록이 어제) 0 · 전설 5(상한) · 알 0", ["fed", "peckish", "legend", "egg"].map(today).join(","));
 }
 
 if (failures.length) {

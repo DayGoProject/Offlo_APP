@@ -8,7 +8,7 @@ import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 import { moodFor, type Mood } from "@/components/garden/art/moods";
 import type { PetCondition } from "@/logic/garden";
-import { ANIMAL_STAGES, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
+import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
 
 import { makeAura, makeCrown, makeScarf, type Aura } from "./accessories";
 import { makeEgg, type Egg } from "./egg";
@@ -22,13 +22,6 @@ export const PET_DURATION = 1.7;
 
 /** 스크린샷용 — 동작의 한 순간을 붙잡아 둔다 */
 export type HoldAction = "eat" | "pet" | null;
-
-/**
- * 장면이 "지금 시작했다"고 알리는 일 — 효과음이 화면과 같은 순간에 나도록 장면이 직접 알린다
- * (다른 탭에 가 있어 프레임 루프가 멈춘 동안엔 시작하지 않으니 소리도 나지 않고, 돌아오면 그때 난다).
- *  pet 쓰다듬기 · knock 알 두드리기 · eat 밥 먹기 · hatch 부화 · stageUp 단계 상승
- */
-export type PetEvent = "pet" | "knock" | "eat" | "hatch" | "stageUp";
 
 export interface FrameInput {
   stage: AnimalStatus;
@@ -76,18 +69,7 @@ export class PetScene {
   /** 지금 그려지는 체형 — 단계가 바뀌면 목표 체형으로 부드럽게 풀린다 */
   private readonly lookNow: Look = { ...ADULT_LOOK, body: [1, 1, 1] };
   private lookSnapped = false;
-  private lastPetSound = -99;
   private readonly tmp = new Vector3();
-
-  private eventHandler: ((event: PetEvent) => void) | null = null;
-
-  /** 일이 시작될 때 불릴 함수를 정한다 (정지 화면에서는 불리지 않는다) */
-  setEventHandler(handler: ((event: PetEvent) => void) | null): void {
-    this.eventHandler = handler;
-  }
-  private onEvent(event: PetEvent): void {
-    this.eventHandler?.(event);
-  }
 
   constructor(kind: AnimalTypeId, source: Object3D) {
     // GLB 장면은 useLoader가 캐시해 공유한다 — 장신구를 뼈대에 붙이므로 뼈대까지 복제해 이 장면 전용으로 쓴다
@@ -164,29 +146,17 @@ export class PetScene {
     const isEgg = stage === "egg";
 
     // 들어온 요청을 이 프레임의 시각으로 시작한다 (정지 화면에서는 무시)
-    if (this.feedRequested && !still && !isEgg) {
-      this.eatStart = t;
-      this.onEvent("eat");
-    }
+    if (this.feedRequested && !still && !isEgg) this.eatStart = t;
     if (this.petRequested && !still) {
       if (t >= this.petUntil) this.petStart = t;
       this.petUntil = t + PET_DURATION;
-      // 이어서 마구 누를 때 소리가 겹쳐 시끄럽지 않게 — 0.8초에 한 번
-      if (t - this.lastPetSound > 0.8) {
-        this.lastPetSound = t;
-        this.onEvent(isEgg ? "knock" : "pet");
-      }
     }
     this.feedRequested = false;
     this.petRequested = false;
 
-    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다). 올라갈 때만 소리: 알에서는 부화, 그 밖엔 종소리
+    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다)
     if (this.stage !== stage) {
       const first = this.stage === null;
-      if (!first && !still) {
-        const order = (s: AnimalStatus) => ANIMAL_STAGES.findIndex((x) => x.status === s);
-        if (order(stage) > order(this.stage!)) this.onEvent(this.stage === "egg" ? "hatch" : "stageUp");
-      }
       this.stage = stage;
       if (!first && !still) this.popStart = t;
       if (first || still) this.scale = look.scale;
@@ -218,7 +188,9 @@ export class PetScene {
     const eat = input.hold === "eat" ? 1 : eatOn ? ease(eatAge / 0.45) * ease((EAT_DURATION - eatAge) / 0.45) : 0;
     const petOn = t < this.petUntil;
     const pet = input.hold === "pet" ? 1 : petOn ? ease((t - this.petStart) / 0.25) * ease((this.petUntil - t) / 0.5) : 0;
-    const petT = input.hold === "pet" ? 0.4 : t - this.petStart;    // 밥그릇 — 배부르면 조금 남고, 배고프면 텅 비어 있다. 먹는 동안 가득 → 남은 만큼으로 줄어든다
+    const petT = input.hold === "pet" ? 0.4 : t - this.petStart;
+
+    // 밥그릇 — 배부르면 조금 남고, 배고프면 텅 비어 있다. 먹는 동안 가득 → 남은 만큼으로 줄어든다
     const rest = input.condition === "fed" ? 0.55 : 0;
     const bowlFill = input.hold === "eat" ? 0.7 : eatOn ? 1 - (1 - rest) * ease(eatAge / EAT_DURATION) : rest;
     this.bowl.setFill(bowlFill);

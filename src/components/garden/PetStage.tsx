@@ -12,7 +12,6 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 
-import { SoundOffIcon, SoundOnIcon } from "@/components/app/Icons";
 import PlantImage from "@/components/garden/PlantImage";
 import Bowl from "@/components/garden/art/Bowl";
 import Egg from "@/components/garden/art/Egg";
@@ -24,7 +23,6 @@ import PetErrorBoundary from "@/components/garden/three/PetErrorBoundary";
 import { ROOM_LAYOUT } from "@/components/garden/three/petCanvasTypes";
 import { CONDITION_LABEL, type PetCondition } from "@/logic/garden";
 import { dayPartOf, isAnxious, speechLines } from "@/logic/scene";
-import { playPetSound, preparePetSounds, setPetSoundEnabled, soundFor, usePetSoundEnabled, type PetSoundId } from "@/services/pet-sound";
 import { getAnimalStage, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 import { colors, fonts, radius } from "@/theme";
 
@@ -83,12 +81,6 @@ export default function PetStage({
     return () => clearTimeout(id);
   }, [try3d, ready3d]);
   const showSvg = !try3d || (late3d && !ready3d);
-  // 소리는 3D가 그려진 뒤 한가할 때 미리 준비한다 — 처음 누를 때 준비하면 JS 스레드가 막혀 첫 쓰다듬기가 버벅인다 (pet-sound.ts)
-  useEffect(() => {
-    if (!ready3d) return;
-    const id = setTimeout(() => preparePetSounds([`${type}_happy`, `${type}_sad`, "eat", "chime"] as PetSoundId[]), 600);
-    return () => clearTimeout(id);
-  }, [ready3d, type]);
   const fade = useSharedValue(0);
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.get() }));
   useEffect(() => {
@@ -107,8 +99,6 @@ export default function PetStage({
   }
   // 동물을 누르면 쓰다듬는다 — 진행 기록은 없다 (쓰다듬기 저장 · 햅틱은 6-3 · 6-4)
   const [petSignal, setPetSignal] = useState(0);
-  // 효과음 — 장면이 "시작했다"고 알릴 때 난다 (내가 누르거나 밥을 먹었을 때만. 저절로 울리지 않는다)
-  const soundOn = usePetSoundEnabled();
 
   return (
     <View
@@ -164,7 +154,6 @@ export default function PetStage({
                   eatSignal={eatSignal}
                   petSignal={petSignal}
                   onReady={() => setReady3d(true)}
-                  onEvent={(event) => void playPetSound(soundFor(event, type, condition))}
                 />
               </PetErrorBoundary>
             </Animated.View>
@@ -192,21 +181,6 @@ export default function PetStage({
             <View style={[styles.dot, { backgroundColor: condition === "fed" ? colors.brand : colors.textFaint }]} />
             <Text style={styles.chipText}>{CONDITION_LABEL[condition]}</Text>
           </View>
-
-          {/* 소리 켜기 · 끄기 — 3D 동물이 있을 때만 (SVG 폴백엔 소리가 없다). 선택은 기기에 남는다 */}
-          {ready3d && animate ? (
-            <Pressable
-              testID="pet-sound-toggle"
-              accessibilityRole="switch"
-              accessibilityLabel="동물 소리"
-              accessibilityState={{ checked: soundOn }}
-              hitSlop={8}
-              onPress={() => setPetSoundEnabled(!soundOn)}
-              style={styles.soundBtn}
-            >
-              {soundOn ? <SoundOnIcon color={colors.textPrimarySoft} /> : <SoundOffIcon color={colors.textFaint} />}
-            </Pressable>
-          ) : null}
         </>
       ) : null}
     </View>
@@ -246,19 +220,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     height: 28,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    backgroundColor: "rgba(4, 5, 8, 0.6)",
-  },
-  soundBtn: {
-    position: "absolute",
-    right: 12,
-    top: 12,
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.borderCard,

@@ -160,6 +160,7 @@ const neverRetry = [
   ["ai.chat", (c) => c.ai.chat({ analysisId: "a", messages: [], analysisContext: {} })],
   ["analyses.create", (c) => c.analyses.create({ periodType: "daily" })],
   ["garden.addPlantExp", (c) => c.garden.addPlantExp(30)],
+  ["garden.pet", (c) => c.garden.pet(3)], // 두 번 보내면 쓰다듬기가 두 번 반영된다 (서버가 상한은 지키지만 멱등은 아니다)
   ["community.toggleLike", (c) => c.community.toggleLike("p1")],
   ["community.createPost", (c) => c.community.createPost("안녕")],
   ["goals.create", (c) => c.goals.create({ title: "t", targetMinutes: 60, startDate: "", endDate: "" })],
@@ -181,6 +182,25 @@ for (const [name, call] of safeRetry) {
   const s = scenario([offline()]);
   await attempt(call(s.client));
   check(s.calls.length === 3, `재시도 함 (덮어쓰기라 안전): ${name}`, `${s.calls.length}회`);
+}
+{
+  // 쓰다듬기 기록 — 묶음 횟수를 보내고 서버가 인정한 몫 · 오늘 횟수 · 친밀도를 받는다
+  const reply = {
+    ok: true, accepted: 2, date: "2026-10-05", today: 5, cap: 5, total: 41,
+    level: { level: 3, name: "친구" }, nextLevel: { level: 4, name: "단짝", minTotal: 70 },
+  };
+  const s = scenario([json(reply)]);
+  const { value } = await attempt(s.client.garden.pet(3));
+  const sent = JSON.parse(s.calls[0]?.init.body ?? "{}");
+  check(
+    value?.accepted === 2 && value.today === 5 && value.level.name === "친구" &&
+      s.calls[0]?.url === "https://api.test/api/garden/pet" && s.calls[0]?.init.method === "POST" && sent.count === 3,
+    "garden.pet — 묶음 횟수(count)를 POST로 보내고 인정된 몫 · 오늘 횟수 · 레벨을 받는다",
+    JSON.stringify(sent),
+  );
+  const full = scenario([json({ error: "먼저 함께할 동물을 골라 주세요." }, 409)]);
+  const rejected = await attempt(full.client.garden.pet(1));
+  check(rejected.error?.status === 409 && rejected.error.message.includes("동물을 골라") && full.calls.length === 1, "garden.pet — 동물을 안 골랐으면(409) 서버 한국어 문구를 그대로 띄우고 다시 보내지 않음");
 }
 {
   const s = scenario([hang()]);

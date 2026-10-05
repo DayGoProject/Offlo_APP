@@ -4,8 +4,6 @@
  */
 import { Text, View } from "react-native";
 
-import { playPetSound, soundFor } from "@/services/pet-sound";
-
 import PetErrorBoundary from "./PetErrorBoundary";
 import PetCanvas from "./PetCanvas";
 import type { PetCanvasProps } from "./petCanvasTypes";
@@ -23,7 +21,7 @@ export default function ClayPetView(props: ClayPetProps) {
         </View>
       )}
     >
-      <PetCanvas {...props} interactive onEvent={(event) => void playPetSound(soundFor(event, props.type, props.condition))} />
+      <PetCanvas {...props} interactive />
     </PetErrorBoundary>
   );
 }
