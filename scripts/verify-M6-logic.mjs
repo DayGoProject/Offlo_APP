@@ -17,6 +17,7 @@
  *   5. 성장 진행률 — 식물 7단계 · 동물 6단계 경계 · 마지막 단계
  *   6. 미리보기 샘플이 의도한 상태로 계산되는가
  *   7. 친밀도(쓰다듬기) — 승인된 수치(하루 5회 · 레벨 5단계 0/10/30/70/130) · 레벨 경계 · 상한 · KST 자정 · 깨진 값 · 두 기기 동시 · 동물 변경 시 초기화
+ *   8. 쓰다듬기 상태(logic/pet.ts, 6-4) — 낙관적 갱신 · 상한 · 레벨업 · 묶음 전송(보내는 중 · 응답 · 실패 · 서버 값으로 맞춤) · 새 날 · 반응 대사
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -271,6 +272,93 @@ const NOW = at(2026, 9, 17, 10, 0);
   // 미리보기 샘플이 의도한 값으로 읽히는가
   const today = (name) => u.petTodayCount(GARDEN_SAMPLES[name].animal.pet, k.kstDateKey(GARDEN_NOW));
   check(today("fed") === 3 && today("peckish") === 0 && today("legend") === 5 && today("egg") === 0, "샘플 — 오늘 횟수: 배부름 3 · 출출(기록이 어제) 0 · 전설 5(상한) · 알 0", ["fed", "peckish", "legend", "egg"].map(today).join(","));
+}
+
+/* ── 8. 쓰다듬기 상태 — 화면에 먼저 반영하고 모아서 보낸다 (logic/pet.ts · 6-4) ───── */
+{
+  const P = await import(pathToFileURL(join(SRC, "logic", "pet.ts")).href);
+  const T = "2026-10-05";
+  const rec = (today, total, date = T) => ({ date, today, total });
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+  // 처음 읽기 — 서버 기록 그대로
+  const base = P.initAffection(rec(3, 41));
+  const v0 = P.affectionView(base, T);
+  check(v0.today === 3 && v0.total === 41 && v0.cap === 5 && !v0.capped, "처음 — 오늘 3 · 누적 41 · 상한 5");
+  check(v0.level.level === 3 && v0.level.name === "친구" && v0.next?.level === 4 && v0.next?.minTotal === 70 && v0.remainToNext === 29, "Lv3 친구 · 다음 Lv4(70)까지 29번");
+  check(P.affectionView(P.initAffection(undefined), T).today === 0 && P.affectionView(P.initAffection(null), T).level.level === 1, "기록이 없으면 오늘 0 · Lv1");
+  check(P.affectionView(P.initAffection(rec(5, 140)), T).next === null && P.affectionView(P.initAffection(rec(5, 140)), T).remainToNext === 0, "마지막 레벨은 다음이 없다");
+
+  // 탭 — 즉시 반영, 상한에 닿으면 알리고, 넘으면 세지 않는다
+  let st = base;
+  const t1 = P.tapPet(st, T);
+  st = t1.state;
+  check(t1.result.counted && t1.result.view.today === 4 && st.pending === 1 && !t1.result.reachedCap && !t1.result.levelUp, "탭 1 — 오늘 4 · 모아 둔 1 · 상한 아직");
+  const t2 = P.tapPet(st, T);
+  st = t2.state;
+  check(t2.result.counted && t2.result.reachedCap && t2.result.view.capped && t2.result.view.today === 5 && st.pending === 2, "탭 2 — 오늘 5(상한 달성) · reachedCap");
+  const t3 = P.tapPet(st, T);
+  check(!t3.result.counted && !t3.result.reachedCap && t3.state === st && t3.result.view.today === 5, "탭 3 — 상한 뒤에는 세지 않고 상태도 그대로 (화면 효과만)");
+  check(P.affectionView(st, T).total === 43 && P.affectionView(st, T).today === 5, "화면 값 — 누적 43 · 오늘 5 (서버 응답 전에도 먼저 올라가 있다)");
+
+  // 레벨업 — 9 → 10에서 Lv2
+  const lv = P.tapPet(P.initAffection(rec(0, 9)), T).result;
+  check(lv.counted && lv.levelUp && lv.view.level.level === 2 && lv.view.level.name === "조심스러운 사이" && lv.view.remainToNext === 20, "누적 9 → 10 : 레벨업(Lv2 조심스러운 사이)");
+  const both = P.tapPet(P.initAffection(rec(4, 9)), T).result;
+  check(both.levelUp && both.reachedCap, "레벨업과 상한 달성이 같은 탭에서도 둘 다 알린다");
+  check(!P.tapPet(P.initAffection(rec(0, 11)), T).result.levelUp, "같은 레벨 안에서는 레벨업이 아니다");
+  check(!P.tapPet(P.initAffection(rec(5, 9)), T).result.levelUp, "상한을 채운 탭은 누적이 안 올라 레벨업도 없다");
+
+  // 묶음 전송 — 한 번에 하나만 · 보내는 중에도 화면 값은 유지
+  const f1 = P.beginFlush(st);
+  check(f1.count === 2 && f1.state.inflight === 2 && f1.state.pending === 0, "전송 시작 — 모아 둔 2를 보낸다");
+  check(P.affectionView(f1.state, T).today === 5 && P.affectionView(f1.state, T).total === 43, "보내는 중에도 화면 값은 그대로 (되돌아가 깜빡이지 않는다)");
+  check(P.beginFlush(f1.state).count === 0 && P.beginFlush(base).count === 0, "이미 보내는 중이거나 보낼 것이 없으면 보내지 않는다 (한 번에 하나)");
+  // 보내는 동안 더 쌓인 몫은 따로 남는다
+  const during = P.tapPet(P.beginFlush(P.tapPet(base, T).state).state, T);
+  check(during.state.inflight === 1 && during.state.pending === 1 && during.result.view.today === 5, "보내는 동안 쌓인 탭은 다음 전송 몫으로 남는다");
+
+  // 응답 — 서버가 진실이다
+  const ok = P.flushDone(f1.state, { date: T, today: 5, total: 43 });
+  check(ok.inflight === 0 && ok.pending === 0 && eq(ok.server, rec(5, 43)) && eq(P.affectionView(ok, T), P.affectionView(st, T)), "응답 도착 — 서버 값 43으로 갱신 · 화면은 그대로");
+  const behind = P.flushDone(f1.state, { date: T, today: 5, total: 41 });
+  check(P.affectionView(behind, T).total === 41 && P.affectionView(behind, T).today === 5, "다른 기기가 먼저 올려 덜 인정됐으면 응답 값(41)으로 맞춘다 — 서버가 진실");
+  const keep = P.flushDone(during.state, { date: T, today: 4, total: 42 });
+  check(keep.inflight === 0 && keep.pending === 1 && P.affectionView(keep, T).today === 5, "응답이 와도 그 사이 쌓인 몫은 이어서 보낸다");
+
+  // 실패 — 보낸 몫은 버리고 서버 값으로 되돌린다 (재전송하면 두 번 셀 수 있다)
+  const bad = P.flushFailed(f1.state);
+  check(bad.inflight === 0 && P.affectionView(bad, T).today === 3 && P.affectionView(bad, T).total === 41, "전송 실패 — 보낸 2번은 버리고 서버 값(오늘 3 · 누적 41)으로 되돌린다");
+  const badKeep = P.flushFailed(during.state);
+  check(badKeep.pending === 1 && badKeep.inflight === 0, "실패해도 아직 안 보낸 몫은 남는다");
+
+  // 화면이 서버를 다시 읽었다 / 동물을 바꿨다
+  const re = P.syncServer(st, rec(5, 50));
+  check(re.pending === 2 && eq(re.server, rec(5, 50)), "서버 기록을 다시 읽으면 서버 값만 바꾸고 모아 둔 몫은 유지");
+  check(P.samePet(rec(3, 41), rec(3, 41)) && !P.samePet(rec(3, 41), rec(4, 41)) && P.samePet(null, { date: null, today: 0, total: 0 }) && P.samePet(undefined, null), "samePet — 같은 기록 · 빈 기록 비교");
+
+  // 새 날 — KST 자정이 지나면 상한이 다시 찬다
+  const yday = P.initAffection(rec(5, 50, "2026-10-04"));
+  check(P.affectionView(yday, T).today === 0 && !P.affectionView(yday, T).capped, "어제 5번 쌓았어도 오늘은 0부터");
+  const nd = P.tapPet(yday, T);
+  check(nd.result.counted && nd.result.view.today === 1 && nd.result.view.total === 51, "새 날 첫 탭 — 오늘 1 · 누적 51(이어서)");
+
+  // 반응 대사
+  const conds = ["egg", "fed", "peckish", "starving"];
+  const types = ["cat", "dog", "rabbit"];
+  let allOk = true;
+  let repeats = 0;
+  for (const c of conds)
+    for (const t of types)
+      for (const kind of ["pet", "capped"]) {
+        if (!P.reactionLine(c, t, kind, 0)) allOk = false;
+        for (let i = 0; i < 12; i++) if (P.reactionLine(c, t, kind, i) === P.reactionLine(c, t, kind, i + 1)) repeats++;
+      }
+  check(allOk, "대사 — 상태 4 × 동물 3 × (쓰다듬기 · 상한) 모두 있다");
+  check(repeats === 0, "같은 대사가 연달아 나오지 않는다");
+  check(P.reactionLine("none", "cat", "pet", 0) === null && P.reactionLine("fed", null, "pet", 0) === null, "동물을 안 골랐으면 대사 없음");
+  check(P.reactionLine("fed", "cat", "pet", -1) !== null && P.reactionLine("fed", "cat", "pet", 7) === P.reactionLine("fed", "cat", "pet", 1), "대사 번호는 음수 · 큰 수도 순환");
+  check(P.levelUpLine(lv.view) === "친밀도 Lv.2 · 조심스러운 사이!", "레벨업 말풍선", P.levelUpLine(lv.view));
 }
 
 if (failures.length) {

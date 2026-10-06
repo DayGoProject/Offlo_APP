@@ -5,7 +5,7 @@
 import type { PetCondition } from "@/logic/garden";
 import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
 
-import type { HoldAction } from "./PetScene";
+import type { HoldAction, PetEvent } from "./PetScene";
 
 export interface CanvasLayout {
   camera: [number, number, number];
@@ -55,6 +55,8 @@ export interface PetCanvasProps {
   hold?: HoldAction;
   /** 값이 바뀔 때마다 밥 먹기를 시작한다 */
   eatSignal?: number;
+  /** 이번 밥이 굶주림에서 돌아오는 밥이면 true (`eatSignal`이 바뀔 때의 값 — 햅틱이 더 크다) */
+  eatRecovery?: boolean;
   /** 값이 바뀔 때마다 쓰다듬기를 시작한다 */
   petSignal?: number;
   /** 화면 배치 (기본: 확인용 뷰어) */
@@ -63,6 +65,8 @@ export interface PetCanvasProps {
   active?: boolean;
   /** 모델을 불러오고 첫 프레임을 그린 직후 한 번 */
   onReady?: () => void;
+  /** 밥 먹기 · 부화 · 성장이 시작될 때 (햅틱용) — 프레임 루프가 도는 동안만, 정지 화면에서는 불리지 않는다. 바뀔 때마다 새로 걸리니 안정된 함수를 넘긴다 */
+  onEvent?: (event: PetEvent) => void;
   /** true면 캔버스가 직접 탭을 받는다 (뷰어). 정원은 스크롤과 다투지 않게 false — 위에 Pressable을 얹는다 */
   interactive?: boolean;
 }

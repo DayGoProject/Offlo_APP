@@ -8,10 +8,11 @@
  * 화면(GardenView)에 넘기는 값은 그대로다: 종류 · 연속 기록 · 상태 (+ 식물 경험치 · 지금 시각).
  * 모든 좌표는 방의 360 × 418 단위이고, 실제 폭에 맞춰 한 배율(k)로 늘린다.
  */
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 
+import PetTouch from "@/components/garden/PetTouch";
 import PlantImage from "@/components/garden/PlantImage";
 import Bowl from "@/components/garden/art/Bowl";
 import Egg from "@/components/garden/art/Egg";
@@ -20,9 +21,12 @@ import Room, { ROOM_H, ROOM_W } from "@/components/garden/art/Room";
 import SpeechBubble, { useSpeech } from "@/components/garden/art/SpeechBubble";
 import PetCanvas from "@/components/garden/three/PetCanvas";
 import PetErrorBoundary from "@/components/garden/three/PetErrorBoundary";
+import type { PetEvent } from "@/components/garden/three/PetScene";
 import { ROOM_LAYOUT } from "@/components/garden/three/petCanvasTypes";
 import { CONDITION_LABEL, type PetCondition } from "@/logic/garden";
+import { levelUpLine, reactionLine, type TapResult } from "@/logic/pet";
 import { dayPartOf, isAnxious, speechLines } from "@/logic/scene";
+import { haptic, type HapticKind } from "@/services/haptics";
 import { getAnimalStage, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 import { colors, fonts, radius } from "@/theme";
 
@@ -37,6 +41,14 @@ const PLANT_TOP = 190;
 const CANVAS_TOP = 96;
 /** 3D가 이 시간 안에 준비되지 않으면 SVG를 대신 그린다 (그래도 늦게 준비되면 3D로 바뀐다) */
 const FALLBACK_AFTER_MS = 4000;
+/** 쓰다듬었을 때 동물이 하는 말이 떠 있는 시간 */
+const REACTION_MS = 2400;
+
+/** 장면이 알리는 일 → 햅틱 (프레임 루프가 도는 동안, 시작하는 그 순간에 난다) */
+const EVENT_HAPTIC: Record<PetEvent, HapticKind> = { eat: "success", recover: "recover", hatch: "grow", stageUp: "grow" };
+function playPetEvent(event: PetEvent) {
+  haptic(EVENT_HAPTIC[event]);
+}
 
 export default function PetStage({
   type,
@@ -46,6 +58,7 @@ export default function PetStage({
   now,
   animate = true,
   active = true,
+  onPet,
 }: {
   type: AnimalTypeId;
   streak: number;
@@ -58,6 +71,8 @@ export default function PetStage({
   animate?: boolean;
   /** false면 3D 프레임 루프를 멈춘다 — 다른 탭에 가 있는 동안 GPU를 쓰지 않는다 */
   active?: boolean;
+  /** 쓰다듬기 한 번이 친밀도로 인정되는지 알려 준다 (한 번에 한 번만 부른다) — 없으면 화면 효과만 */
+  onPet?: () => TapResult;
 }) {
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width));
@@ -93,12 +108,49 @@ export default function PetStage({
   // 밥을 먹으면(출출 · 굶주림 → 배부름) 먹는 연출을 한 번 — 렌더 중에 이전 상태와 비교한다 (효과에서 setState 하지 않는다)
   const [prevCondition, setPrevCondition] = useState(condition);
   const [eatSignal, setEatSignal] = useState(0);
+  // 굶주림에서 돌아오는 밥이면 햅틱이 더 크다
+  const [eatRecovery, setEatRecovery] = useState(false);
   if (condition !== prevCondition) {
     setPrevCondition(condition);
-    if (condition === "fed" && (prevCondition === "peckish" || prevCondition === "starving")) setEatSignal((n) => n + 1);
+    if (condition === "fed" && (prevCondition === "peckish" || prevCondition === "starving")) {
+      setEatRecovery(prevCondition === "starving");
+      setEatSignal((n) => n + 1);
+    }
   }
-  // 동물을 누르면 쓰다듬는다 — 진행 기록은 없다 (쓰다듬기 저장 · 햅틱은 6-3 · 6-4)
+
+  // ── 쓰다듬기 ─────────────────────────────────────────────
+  // 톡(탭) · 쓱쓱(문지르기) → 3D 반응 + 햅틱 + 동물의 말 + (인정되면) 친밀도. 손가락이 닿는 그 핸들러 안에서 함께 낸다
   const [petSignal, setPetSignal] = useState(0);
+  const [reaction, setReaction] = useState<string | null>(null);
+  const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turn = useRef(0);
+  useEffect(
+    () => () => {
+      if (reactionTimer.current) clearTimeout(reactionTimer.current);
+    },
+    [],
+  );
+  const say = (text: string | null) => {
+    if (reactionTimer.current) clearTimeout(reactionTimer.current);
+    setReaction(text);
+    reactionTimer.current = text ? setTimeout(() => setReaction(null), REACTION_MS) : null;
+  };
+  /** 한 번 닿았다(탭) 또는 문지르기를 마쳤다 — 친밀도는 여기서 한 번만 센다 */
+  const touched = (stroke: boolean) => {
+    const r = onPet?.();
+    if (!stroke) setPetSignal((n) => n + 1);
+    if (r?.levelUp || r?.reachedCap) haptic("success");
+    else if (!stroke) haptic(condition === "starving" || (r && !r.counted) ? "soft" : "tap");
+    if (r?.levelUp) say(levelUpLine(r.view));
+    else if (r && (r.reachedCap || !r.counted)) say(reactionLine(condition, type, "capped", turn.current++));
+    else if (!stroke) say(reactionLine(condition, type, "pet", turn.current++));
+  };
+  /** 문지르는 중 구간 하나 — 틱 + 반응 이어가기 (첫 구간에서 한마디) */
+  const stroking = (ticks: number) => {
+    haptic("tick");
+    setPetSignal((n) => n + 1);
+    if (ticks === 1) say(reactionLine(condition, type, "pet", turn.current++));
+  };
 
   return (
     <View
@@ -152,28 +204,30 @@ export default function PetStage({
                   active={active}
                   layout={ROOM_LAYOUT}
                   eatSignal={eatSignal}
+                  eatRecovery={eatRecovery}
                   petSignal={petSignal}
                   onReady={() => setReady3d(true)}
+                  onEvent={playPetEvent}
                 />
               </PetErrorBoundary>
             </Animated.View>
           ) : null}
           {ready3d ? <View testID="pet-3d-ready" pointerEvents="none" style={styles.marker} /> : null}
 
-          {/* 쓰다듬기 — 3D가 그려지고 움직일 때만. 위로 끄는 스크롤은 그대로 통과한다 */}
-          {ready3d && animate ? (
-            <Pressable
-              testID="pet-touch"
-              accessibilityRole="button"
-              accessibilityLabel={isEgg ? "알 쓰다듬기" : "동물 쓰다듬기"}
-              onPress={() => setPetSignal((n) => n + 1)}
+          {/* 쓰다듬기 — 동물이 그려지고(3D 또는 SVG 폴백) 움직일 때만. 위아래로 끄는 스크롤은 그대로 통과한다 */}
+          {animate && (ready3d || showSvg) ? (
+            <PetTouch
+              label={isEgg ? "알 쓰다듬기" : "동물 쓰다듬기"}
+              onTap={() => touched(false)}
+              onStrokeTick={stroking}
+              onStrokeEnd={() => touched(true)}
               style={{ position: "absolute", left: 56 * k, top: 150 * k, width: 270 * k, height: 262 * k }}
             />
           ) : null}
 
           {/* 말풍선 */}
           <View pointerEvents="none" style={[styles.bubbleSlot, { top: 100 * k, transform: [{ translateX: (PET_CENTER_X - ROOM_W / 2) * k }] }]}>
-            <SpeechBubble text={speech} maxWidth={width * 0.72} />
+            <SpeechBubble text={reaction ?? speech} maxWidth={width * 0.72} />
           </View>
 
           {/* 상태 칩 */}

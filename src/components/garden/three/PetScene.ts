@@ -8,7 +8,7 @@ import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 import { moodFor, type Mood } from "@/components/garden/art/moods";
 import type { PetCondition } from "@/logic/garden";
-import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
+import { ANIMAL_STAGES, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 
 import { makeAura, makeCrown, makeScarf, type Aura } from "./accessories";
 import { makeEgg, type Egg } from "./egg";
@@ -22,6 +22,14 @@ export const PET_DURATION = 1.7;
 
 /** 스크린샷용 — 동작의 한 순간을 붙잡아 둔다 */
 export type HoldAction = "eat" | "pet" | null;
+
+/**
+ * 장면이 "지금 시작했다"고 알리는 일 — 햅틱이 화면과 같은 순간에 나도록 장면이 직접 알린다
+ * (다른 탭에 가 있어 프레임 루프가 멈춘 동안엔 시작하지 않으니 진동도 나지 않고, 돌아오면 그때 난다 · 정지 화면에서도 나지 않는다).
+ *  eat 밥 먹기 · recover 굶주림에서 회복하는 밥 먹기 · hatch 부화 · stageUp 성장 단계 상승
+ * 쓰다듬기는 여기서 알리지 않는다 — 손가락이 닿는 순간(터치 핸들러)에 곧바로 나야 해서 그쪽에서 낸다.
+ */
+export type PetEvent = "eat" | "recover" | "hatch" | "stageUp";
 
 export interface FrameInput {
   stage: AnimalStatus;
@@ -127,9 +135,23 @@ export class PetScene {
     });
   }
 
-  /** 밥 주기 · 쓰다듬기는 **요청만 남긴다** — 시작 시각은 다음 `update(t)`가 프레임 루프의 시계로 잰다 (이벤트 핸들러는 시계를 몰라도 된다). */
-  requestFeed(): void {
+  private eventHandler: ((event: PetEvent) => void) | null = null;
+
+  /** 일이 시작될 때 불릴 함수를 정한다 (정지 화면에서는 불리지 않는다) */
+  setEventHandler(handler: ((event: PetEvent) => void) | null): void {
+    this.eventHandler = handler;
+  }
+  private onEvent(event: PetEvent): void {
+    this.eventHandler?.(event);
+  }
+
+  /**
+   * 밥 주기 · 쓰다듬기는 **요청만 남긴다** — 시작 시각은 다음 `update(t)`가 프레임 루프의 시계로 잰다 (이벤트 핸들러는 시계를 몰라도 된다).
+   * `recovery`는 굶주림에서 돌아오는 밥이다 — 햅틱이 더 크다.
+   */
+  requestFeed(recovery = false): void {
     this.feedRequested = true;
+    this.feedRecovery = recovery;
   }
 
   /** 쓰다듬기 — 탭할 때마다 (이어 누르면 이어서) */
@@ -138,6 +160,7 @@ export class PetScene {
   }
 
   private feedRequested = false;
+  private feedRecovery = false;
   private petRequested = false;
 
   update(t: number, dt: number, input: FrameInput): void {
@@ -146,17 +169,25 @@ export class PetScene {
     const isEgg = stage === "egg";
 
     // 들어온 요청을 이 프레임의 시각으로 시작한다 (정지 화면에서는 무시)
-    if (this.feedRequested && !still && !isEgg) this.eatStart = t;
+    if (this.feedRequested && !still && !isEgg) {
+      this.eatStart = t;
+      this.onEvent(this.feedRecovery ? "recover" : "eat");
+    }
     if (this.petRequested && !still) {
       if (t >= this.petUntil) this.petStart = t;
       this.petUntil = t + PET_DURATION;
     }
     this.feedRequested = false;
+    this.feedRecovery = false;
     this.petRequested = false;
 
-    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다)
+    // 단계 전환 — 크기가 부드럽게 따라가고, 바뀐 순간 통 튀며 (살짝 커졌다 돌아온다). 올라갈 때만 알린다: 알에서는 부화, 그 밖엔 성장
     if (this.stage !== stage) {
       const first = this.stage === null;
+      if (!first && !still) {
+        const order = (s: AnimalStatus) => ANIMAL_STAGES.findIndex((x) => x.status === s);
+        if (order(stage) > order(this.stage!)) this.onEvent(this.stage === "egg" ? "hatch" : "stageUp");
+      }
       this.stage = stage;
       if (!first && !still) this.popStart = t;
       if (first || still) this.scale = look.scale;

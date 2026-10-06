@@ -17,6 +17,9 @@
  *   2. [정지] 동물이 있으면 방 장면(pet-stage)이 그려진다 · 밥 주기 버튼(배부름이 아닐 때) → 분석 탭 → 정원
  *   3. [애니메이션] **화면이 실제로 움직인다** (3D 클레이 동물 · expo-gl — 웹 검증이 못 보는 부분)
  *      + 동물을 누르면 하트가 올라온다 (하트는 3D 장면에서만 나온다 — 3D가 실제로 그려졌다는 증거이기도 하다. 저장 · 기록은 없는 화면 효과)
+ *   3b. **쓰다듬기(6-4) — 이 계정의 오늘 친밀도 기록이 실제로 바뀐다(하루 5번 상한 안, 최대 +3).**
+ *      탭 · 문지르기 때 실제 진동이 나는가(`dumpsys vibrator_manager`) · 위아래로 끌면 스크롤인가 · 카드 숫자가 올랐는가 ·
+ *      앱을 껐다 켜도(= 서버에서 새로 읽어도) 같은 숫자인가 — 실서버 `POST /api/garden/pet` + Firestore 확인
  *   4. 앱 생존 · JS 에러 · 네이티브 크래시 0
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -156,6 +159,28 @@ function tapThenCap(x, y, afterMs = 900) {
   adb(["shell", `input tap ${x} ${y}; sleep ${afterMs / 1000}; screencap -p /sdcard/offlo-tap.png`]);
   return adb(["exec-out", "cat", "/sdcard/offlo-tap.png"], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 }).stdout;
 }
+/** 이 앱이 요청한 진동 목록 — `dumpsys vibrator_manager`의 "Recent vibrations". 진동 장치가 없는 기기는 비어 있다.
+ *  (안드로이드의 expo-haptics는 light · soft · selection이 같은 패턴이라 종류가 아니라 횟수로 본다) */
+function appVibrations() {
+  const dump = adb(["shell", "dumpsys", "vibrator_manager"], { maxBuffer: 16 * 1024 * 1024 }).stdout ?? "";
+  return dump
+    .split("\n")
+    .filter((l) => l.includes(PACKAGE) && l.includes("usage:"))
+    .map((l) => ({ ts: l.match(/(\d\d-\d\d \d\d:\d\d:\d\d\.\d+)/)?.[1] ?? "", played: l.match(/played: \[(.*?)\]/)?.[1] ?? "" }));
+}
+/** 정원 탭의 친밀도 카드를 읽는다 — 정지 모드로 열고(uiautomator가 읽을 수 있게) 카드가 보이도록 스크롤했다가 되돌린다 */
+async function readAffection() {
+  await openGarden(true);
+  await wait(2000);
+  adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
+  await wait(900);
+  const xml = dumpUi();
+  adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
+  await wait(500);
+  const today = xml.match(/text="(\d+) \/ 5번" resource-id="pet-affection-today"/)?.[1];
+  const level = xml.match(/text="(Lv\.\d · [^"]+)"/)?.[1] ?? null;
+  return today === undefined ? null : { today: Number(today), level };
+}
 /** 두 영역이 다른 픽셀 수 */
 function diffCount(a, b) {
   let n = 0;
@@ -265,6 +290,9 @@ try {
 
   /* ── 3. [애니메이션] 움직임 ──────────────────────────────── */
   if (stage) {
+    // 쓰다듬기 전의 친밀도 — 실계정의 오늘 기록 (아래 3b가 여기에 +3을 기대한다)
+    const affection0 = await readAffection();
+    check(affection0 !== null, "친밀도 카드가 실계정 기록으로 뜬다", affection0 ? `${affection0.level} · 오늘 ${affection0.today} / 5번` : "안 보임");
     await openGarden(false);
     await wait(2500);
     const [x1, y1, x2, y2] = stage;
@@ -288,6 +316,66 @@ try {
     const after = heartPixels(region(png, clip));
     check(after > before + 40, "동물을 누르면 하트가 올라온다 (3D 렌더 · 탭 판정)", `하트 픽셀 ${before} → ${after}`);
     shot("M6-android-garden-pet.png", png);
+
+    /* ── 3b. 쓰다듬기 → 진동 · 친밀도 · 서버 — 이 계정의 오늘 기록이 실제로 바뀐다 (하루 5번 상한 안에서) ── */
+    // 탭 2번 + 문지르기 1번(= 3번)을 하고, 진동이 실제로 났는지(dumpsys) · 카드 숫자가 올랐는지 ·
+    // 앱을 완전히 껐다 켜도(= 서버에서 새로 읽어도) 같은 숫자인지 본다. 상한(5)에 이미 닿은 날은 숫자가 그대로여야 한다.
+    {
+      const cap = 5;
+      const expectedAfter = Math.min(cap, (affection0?.today ?? 0) + 3);
+      const vibBefore = appVibrations().length;
+      const vibCount = () => appVibrations().length;
+
+      // 탭 1번 더 (heart 점검의 탭이 첫 번째였다) — 진동이 나야 한다
+      const tapX = x1 + Math.round(w * 0.55);
+      const tapY = y1 + Math.round(h * 0.72);
+      await wait(900);
+      adb(["shell", "input", "tap", String(tapX), String(tapY)]);
+      await wait(500);
+      const afterTap = vibCount();
+      check(afterTap - vibBefore >= 1, "동물을 누르면 실제로 진동이 난다 (dumpsys vibrator_manager)", `이 앱의 진동 +${afterTap - vibBefore}회`);
+
+      // 문지르기 — 좌우로 쓱쓱: 구간마다 틱 진동이 여러 번 난다
+      await wait(900);
+      const beforeStroke = vibCount();
+      adb(["shell", "input", "swipe", String(x1 + Math.round(w * 0.3)), String(tapY), String(x1 + Math.round(w * 0.85)), String(tapY), "900"]);
+      await wait(500);
+      const ticks = vibCount() - beforeStroke;
+      check(ticks >= 2, "좌우로 문지르면 구간마다 틱 진동이 난다", `틱 +${ticks}회`);
+      shot("M6-android-garden-stroke.png");
+
+      // 위아래로 끌면 쓰다듬기가 아니라 스크롤이다 — 동물 위에서 시작해도 화면이 올라가고 숫자는 그대로여야 한다
+      const headerClip = [60, 150, 1020, 330];
+      const topBefore = region(screencap(), headerClip);
+      const beforeScroll = vibCount();
+      adb(["shell", "input", "swipe", String(tapX), String(tapY), String(tapX), String(tapY - 700), "400"]);
+      await wait(900);
+      const scrolled = diffCount(topBefore, region(screencap(), headerClip));
+      check(scrolled > 8000, "동물 위에서 시작한 세로 끌기는 스크롤로 간다 (터치면이 스크롤을 막지 않는다)", `머리글 영역 달라진 픽셀 ${scrolled}`);
+      check(vibCount() === beforeScroll, "세로 끌기에서는 진동이 나지 않는다 (쓰다듬기로 세지 않았다)", `진동 +${vibCount() - beforeScroll}회`);
+      adb(["shell", "input", "swipe", "540", "700", "540", "2000", "400"]); // 맨 위로
+      await wait(700);
+
+      // 서버로 모아서 보내는 시간(1.2초) + 응답을 기다린다
+      await wait(3000);
+      const now1 = await readAffection();
+      check(
+        now1 !== null && now1.today === expectedAfter,
+        `친밀도 카드 — 오늘 ${expectedAfter}/${cap}번 (처음 ${affection0?.today ?? "?"} + 탭 · 문지르기 3번, 상한 ${cap})`,
+        now1 ? `${now1.today} / ${cap}` : "읽지 못함",
+      );
+      shot("M6-android-affection.png");
+
+      // 서버에 실제로 남았는가 — 앱을 완전히 껐다 켜서 메모리 상태를 버리고 Firestore에서 새로 읽는다
+      check(await launchApp(), "앱 재시작 (메모리 상태를 버린다)");
+      await waitForAll([...TABS], 30_000);
+      const now2 = await readAffection();
+      check(
+        now2 !== null && now1 !== null && now2.today === now1.today && now2.level === now1.level,
+        "껐다 켜도 같은 숫자 — 서버(Firestore)에 기록됐다",
+        now2 ? `${now2.today} / ${cap} · ${now2.level}` : "읽지 못함",
+      );
+    }
   }
 
   /* ── 4. 생존 · 에러 ──────────────────────────────────────── */

@@ -4,7 +4,7 @@
  * `app/(app)/(tabs)/garden.tsx` 는 Firestore · API로 불러와 넘기고, `app/preview/garden.tsx` 는 샘플 값을 넘긴다.
  * 그래서 이 파일은 `api` · `useAuth` · Firebase를 import하지 않는다.
  *
- * 상태 계산 · 동물 선택/변경 · 성장 단계 (6-1) + 방 장면 위에서 사는 동물 (6-2).
+ * 상태 계산 · 동물 선택/변경 · 성장 단계 (6-1) + 방 장면 위에서 사는 동물 (6-2) + 쓰다듬기 · 친밀도 (6-4).
  */
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -15,11 +15,13 @@ import PageHeader from "@/components/app/PageHeader";
 import Pill from "@/components/app/Pill";
 import Screen from "@/components/app/Screen";
 import Skeleton from "@/components/app/Skeleton";
+import AffectionCard from "@/components/garden/AffectionCard";
 import AnimalPicker from "@/components/garden/AnimalPicker";
 import ChangeAnimalModal, { type ChangeAnimalTarget } from "@/components/garden/ChangeAnimalModal";
 import PetStage from "@/components/garden/PetStage";
 import PlantThumb from "@/components/garden/PlantThumb";
 import ProgressFoot from "@/components/garden/ProgressFoot";
+import type { AffectionControls } from "@/hooks/use-pet-affection";
 import {
   animalProgress,
   conditionCopy,
@@ -50,6 +52,8 @@ export interface GardenViewProps {
   animate?: boolean;
   /** false면 3D 프레임 루프를 멈춘다 (탭이 포커스를 잃었을 때 — 기본 true) */
   active?: boolean;
+  /** 쓰다듬기 · 친밀도 — 없으면 쓰다듬어도 화면 효과만 있고 친밀도 카드도 없다 */
+  affection?: AffectionControls | null;
 }
 
 const grouped = (n: number) => n.toLocaleString("ko-KR");
@@ -66,6 +70,7 @@ export default function GardenView({
   onFeed,
   animate = true,
   active = true,
+  affection = null,
 }: GardenViewProps) {
   // 변경 중(선택 화면) · 경고 모달 — 화면 안에서만 쓰는 상태
   const [changing, setChanging] = useState(false);
@@ -137,6 +142,7 @@ export default function GardenView({
             now={now}
             animate={animate}
             active={active}
+            onPet={affection?.tap}
           />
 
           <Card testID="pet-condition">
@@ -154,6 +160,8 @@ export default function GardenView({
               </View>
             ) : null}
           </Card>
+
+          {affection ? <AffectionCard view={affection.view} error={affection.error} /> : null}
         </>
       )}
 

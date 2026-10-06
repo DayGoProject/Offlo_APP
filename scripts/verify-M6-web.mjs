@@ -17,12 +17,16 @@
  *   - 장면(6-2) — 방 · 동물 · 식물이 그려지는가 · 상태별 말풍선 대사 · 굶주리면 방이 가라앉는가
  *   - **3D 동물(6-2b)** — 투명 캔버스 1개가 뜨고(`pet-3d-ready`) SVG 폴백은 빠진다 · 동물을 누르면 하트가 올라온다 · 출출함 → 배부름으로 바뀌면 먹는 연출이 돈다
  *     · 시스템 "동작 줄이기"에서는 SVG 폴백이 대신 그려진다
+ *   - **쓰다듬기 · 친밀도(6-4)** — 탭 즉시 반영 · 하루 5번 상한 · 레벨업 · 햅틱 요청(tap · tick · soft · success) · 반응 말풍선 · 문지르기(좌우로 쓱쓱 = 1번) ·
+ *     모아서 한 번에 전송 · 전송 실패(서버 값으로 되돌림 · 재전송 안 함) · 알 · 굶주림 · 동작 줄이기에서도 쓰다듬기
+ *     · 장면 이벤트 햅틱(밥 success · 회복 recover · 부화 · 성장 grow · 정지 화면에서는 없음)
  *   - **살아 있는가** — 동물이 움직이는 프레임이 실제로 달라지는가(정지 화면 금지) · 정지 모드 · 시스템 "동작 줄이기"에서는 멈추는가
  *   - 식물 썸네일(AVIF) 로드 · 숫자는 Familjen Grotesk · 바탕 #040508
  *   - 빈 상태(미선택) · 스켈레톤 · 한국어 에러 + 다시 시도 · 가로 넘침 없음 · 콘솔 에러 0
  */
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -514,6 +518,212 @@ try {
       const starving = await overlayOpacity("starving");
       const fed = await overlayOpacity("fed");
       check(starving === 1 && fed === 0, "굶주림 — 방이 어두워지고 배부르면 그대로", `굶주림 ${starving} · 배부름 ${fed}`);
+    }
+
+    /* ── 쓰다듬기 · 친밀도 (6-4) — 탭 · 문지르기 · 상한 · 레벨업 · 햅틱 요청 · 묶음 전송 · 전송 실패 ───── */
+    {
+      // `@/…` 경로를 src/로 푸는 해석 훅 — logic/pet.ts가 공유 코드를 런타임에 import한다
+      registerHooks({
+        resolve(specifier, context, next) {
+          if (specifier.startsWith("@/")) {
+            const base = join(ROOT, "src", specifier.slice(2));
+            const file = [".ts", ".tsx", "/index.ts"].map((ext) => base + ext).find(existsSync);
+            if (file) return next(pathToFileURL(file).href, context);
+          }
+          return next(specifier, context);
+        },
+      });
+      const P = await import(pathToFileURL(join(ROOT, "src", "logic", "pet.ts")).href);
+      const hapticLog = (page) => page.evaluate(() => [...(globalThis.__offloHaptics ?? [])]);
+      const sendLog = (page) => page.evaluate(() => [...(globalThis.__offloPetSends ?? [])]);
+      const today = async (page) => (await text(page, "pet-affection-today")).replace(/\s+/g, "");
+      const lines = (cond, type, kind) => [0, 1, 2].map((i) => P.reactionLine(cond, type, kind, i));
+      // 대사가 바뀌면 이전 풍선이 퇴장 애니메이션(0.18초)으로 잠깐 남는다 — 가장 나중에 생긴 풍선이 지금 말이다
+      const bubbleText = async (page) => {
+        await page.getByTestId("pet-bubble").last().waitFor({ state: "visible", timeout: 4000 });
+        return (await page.getByTestId("pet-bubble").last().innerText()).trim();
+      };
+      /** 동물을 눌러 3D 준비 · 페이드 인이 끝난 상태로 연다 */
+      const openGarden = async (query) => {
+        const o = await open(`/preview/garden?${query}`, "garden");
+        await o.page.getByTestId("pet-stage").waitFor({ state: "visible" });
+        await waitFor3d(o.page);
+        await o.page.waitForTimeout(700);
+        return o;
+      };
+
+      // A. 탭 — 화면에 즉시 반영 · 상한 · 햅틱 · 반응 말 · 묶어서 한 번에 전송 (고양이 · 배부름 · 오늘 3/5 · 누적 41)
+      {
+        const { page, errors } = await openGarden("state=fed");
+        const card = await text(page, "pet-affection");
+        check(card.includes("Lv.3 · 친구") && (await today(page)) === "3/5번", "친밀도 카드 — Lv.3 친구 · 오늘 3/5번", `${card.slice(0, 40).replace(/\s+/g, " ")} · ${await today(page)}`);
+        check((await text(page, "pet-affection-progress")).includes("41 / 70") && (await text(page, "pet-affection-progress")).includes("단짝까지 29번 남았어요"), "친밀도 카드 — 누적 41 / 70 · 단짝까지 29번");
+        const pips = await page.getByTestId("pet-affection-pips").evaluate((el) => [...el.children].map((c) => getComputedStyle(c).backgroundColor));
+        check(pips.length === 5 && pips.filter((c) => c === BRAND).length === 3, "친밀도 카드 — 점 5개 중 3개가 브랜드 그린", pips.join(" | "));
+        check((await hapticLog(page)).length === 0, "아직 쓰다듬지 않았다 — 햅틱 요청 없음");
+
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(150);
+        check((await today(page)) === "4/5번", "탭 1 — 서버 응답을 기다리지 않고 4/5번으로 바로 올라간다", await today(page));
+        check((await hapticLog(page)).at(-1) === "tap", "탭 1 — 햅틱 tap(가벼운 충격) 요청", (await hapticLog(page)).join(","));
+        const say1 = await bubbleText(page);
+        check(lines("fed", "cat", "pet").includes(say1), "탭 1 — 동물이 쓰다듬는 손에 대답한다", say1);
+
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(150);
+        check((await today(page)) === "5/5번" && (await text(page, "pet-affection-hint")).includes("오늘은 충분히 쓰다듬었어요"), "탭 2 — 5/5번 · 상한 안내", await today(page));
+        check((await hapticLog(page)).at(-1) === "success", "탭 2 — 상한 달성은 success 햅틱", (await hapticLog(page)).join(","));
+        const say2 = await bubbleText(page);
+        check(lines("fed", "cat", "capped").includes(say2), "탭 2 — 상한 달성 말", say2);
+        const full = await page.getByTestId("pet-affection-pips").evaluate((el) => [...el.children].every((c) => getComputedStyle(c).backgroundColor === "rgb(61, 219, 135)"));
+        check(full, "탭 2 — 점 5개 모두 채워짐");
+
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(150);
+        check((await today(page)) === "5/5번" && (await text(page, "pet-affection-progress")).includes("43 / 70"), "탭 3 — 상한 뒤에는 더 쌓이지 않는다 (누적 43 그대로)", await text(page, "pet-affection-progress"));
+        check((await hapticLog(page)).at(-1) === "soft", "탭 3 — 상한 뒤의 탭은 soft(부드러운) 햅틱", (await hapticLog(page)).join(","));
+        check(lines("fed", "cat", "capped").includes(await bubbleText(page)), "탭 3 — 오늘은 충분하다는 말");
+
+        await page.waitForTimeout(1800);
+        const sends = await sendLog(page);
+        check(sends.length === 1 && sends[0] === 2, "서버에는 모아서 한 번에 — 인정된 2번을 1회 요청으로", JSON.stringify(sends));
+        check((await page.getByTestId("pet-affection-error").count()) === 0 && (await today(page)) === "5/5번", "전송 뒤에도 값이 튀지 않고 오류도 없다");
+        await page.screenshot({ path: join(OUT_DIR, "M6-affection-capped.png") });
+        check(errors.length === 0, "친밀도(탭) · 콘솔 에러 0", errors.join(" | ").slice(0, 240));
+        await page.close();
+      }
+
+      // B. 레벨업 — 누적 9 → 10 (Lv2)
+      {
+        const { page } = await openGarden("state=fed&today=0&total=9");
+        check((await text(page, "pet-affection")).includes("Lv.1 · 낯선 사이"), "레벨업 전 — Lv.1 낯선 사이 (누적 9)");
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(200);
+        check((await text(page, "pet-affection")).includes("Lv.2 · 조심스러운 사이"), "누적 10 — 카드가 Lv.2 조심스러운 사이로 바뀐다");
+        check((await bubbleText(page)) === "친밀도 Lv.2 · 조심스러운 사이!", "레벨업 — 말풍선으로 알려 준다");
+        check((await hapticLog(page)).at(-1) === "success", "레벨업 — success 햅틱", (await hapticLog(page)).join(","));
+        await page.waitForTimeout(1800);
+        check(JSON.stringify(await sendLog(page)) === "[1]", "레벨업 탭도 서버에 1번 보낸다", JSON.stringify(await sendLog(page)));
+        await page.close();
+      }
+
+      // C. 문지르기 — 좌우로 쓱쓱: 구간마다 틱 햅틱 · 마치면 1번으로 센다. 위아래로만 끌면 세지 않는다 (스크롤)
+      {
+        const { page } = await openGarden("state=fed&today=0&total=0");
+        const box = await page.getByTestId("pet-touch").boundingBox();
+        const y = box.y + box.height * 0.5;
+        const clip = await petClip(page);
+        const before = heartPixels(Buffer.from(await page.screenshot({ clip })));
+        await page.mouse.move(box.x + box.width * 0.25, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width * 0.75, y, { steps: 14 });
+        await page.mouse.move(box.x + box.width * 0.3, y, { steps: 14 });
+        await page.waitForTimeout(700);
+        const mid = heartPixels(Buffer.from(await page.screenshot({ clip })));
+        const ticks = (await hapticLog(page)).filter((k) => k === "tick").length;
+        check(ticks >= 3, "문지르는 동안 구간마다 tick 햅틱", `틱 ${ticks}번`);
+        check((await today(page)) === "0/5번", "문지르는 중에는 아직 세지 않는다 (마친 뒤 한 번)", await today(page));
+        check(mid > before + 40, "문지르면 하트가 올라온다 (떼기 전에도)", `하트 픽셀 ${before} → ${mid}`);
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+        check((await today(page)) === "1/5번", "문지르기를 마치면 1번으로 센다 (아무리 오래 문질러도 1번)", await today(page));
+        check(!(await hapticLog(page)).includes("tap"), "문지르기에서는 탭 햅틱이 따로 나지 않는다 (틱만)", (await hapticLog(page)).join(","));
+        check(lines("fed", "cat", "pet").includes(await bubbleText(page)), "문지르면 동물이 한마디 한다");
+        await page.waitForTimeout(1800);
+        check(JSON.stringify(await sendLog(page)) === "[1]", "문지르기 한 번 = 서버 1회", JSON.stringify(await sendLog(page)));
+
+        // 위아래로만 끌기 — 스크롤이 가져가야 하니 쓰다듬기로 세지 않는다
+        await page.mouse.move(box.x + box.width * 0.5, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width * 0.5, y + 90, { steps: 8 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+        check((await today(page)) === "1/5번", "세로로만 끌면 쓰다듬기가 아니다 (1/5번 그대로)", await today(page));
+        await page.close();
+      }
+
+      // D. 전송 실패 — 보낸 몫은 서버 값으로 되돌리고 한국어 안내 · 재전송하지 않는다
+      {
+        const { page } = await openGarden("state=fed&today=1&total=1&petfail=1");
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(200);
+        check((await today(page)) === "2/5번", "실패 시나리오 — 일단 화면에는 2/5번으로 올라간다", await today(page));
+        await page.getByTestId("pet-affection-error").waitFor({ state: "visible", timeout: 5000 });
+        const msg = await text(page, "pet-affection-error");
+        check(msg.includes("서버 값으로 되돌렸어요") && msg.includes(OFFLINE_TEXT), "전송 실패 — 한국어 안내 (연결 문제)", msg.slice(0, 60));
+        check((await today(page)) === "1/5번", "전송 실패 — 숫자가 서버 값(1/5번)으로 되돌아간다", await today(page));
+        await page.waitForTimeout(3000);
+        check(JSON.stringify(await sendLog(page)) === "[1]", "전송 실패 — 자동으로 다시 보내지 않는다 (두 번 세지 않게)", JSON.stringify(await sendLog(page)));
+        await page.screenshot({ path: join(OUT_DIR, "M6-affection-error.png") });
+        await page.close();
+      }
+
+      // E. 알 · 굶주림 — 상태별로 알맞게 반응한다
+      {
+        const egg = await openGarden("state=egg");
+        check((await text(egg.page, "pet-affection")).includes("Lv.1") && (await today(egg.page)) === "0/5번", "알 — 친밀도 카드는 Lv.1 · 0/5번에서 시작");
+        await egg.page.getByTestId("pet-touch").click();
+        await egg.page.waitForTimeout(200);
+        check((await today(egg.page)) === "1/5번" && lines("egg", "cat", "pet").includes(await bubbleText(egg.page)), "알 — 톡 두드리면 1/5번 · 알다운 대답", await bubbleText(egg.page));
+        await egg.page.close();
+
+        const hungry = await openGarden("state=starving");
+        await hungry.page.getByTestId("pet-touch").click();
+        await hungry.page.waitForTimeout(200);
+        check((await hapticLog(hungry.page)).at(-1) === "soft", "굶주림 — 힘없는 동물은 soft 햅틱 (죄책감 없이 부드럽게)", (await hapticLog(hungry.page)).join(","));
+        check(lines("starving", "rabbit", "pet").includes(await bubbleText(hungry.page)), "굶주림 — 힘없지만 고마워하는 말", await bubbleText(hungry.page));
+        await hungry.page.close();
+      }
+
+      // F. 스크롤 · 접근성 — 동작 줄이기(SVG 폴백)에서도 쓰다듬을 수 있다 · 정지 모드에는 터치면이 없다
+      {
+        const reduced = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          deviceScaleFactor: 2,
+          colorScheme: "dark",
+          reducedMotion: "reduce",
+          timezoneId: "Asia/Seoul",
+          locale: "ko-KR",
+        });
+        const page = await reduced.newPage();
+        await page.goto(`${URL}/preview/garden?state=fed`, { waitUntil: "networkidle", timeout: 120_000 });
+        await page.getByTestId("pet-stage").waitFor({ state: "visible", timeout: 60_000 });
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(600);
+        check((await page.getByTestId("pet-touch").count()) === 1, "동작 줄이기 — 3D 대신 SVG여도 쓰다듬는 면은 있다");
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(200);
+        check((await today(page)) === "4/5번", "동작 줄이기 — 쓰다듬으면 친밀도가 쌓인다", await today(page));
+        check(lines("fed", "cat", "pet").includes(await bubbleText(page)), "동작 줄이기 — 움직임 대신 말로 반응한다");
+        const role = await page.getByTestId("pet-touch").evaluate((el) => [el.getAttribute("role"), el.getAttribute("aria-label")]);
+        check(role[0] === "button" && role[1] === "동물 쓰다듬기", "접근성 — 버튼 역할 · 한국어 라벨", role.join(" · "));
+        await reduced.close();
+      }
+
+      // G. 장면 이벤트 → 햅틱 — 밥 먹기 success · 굶주림에서 회복 recover · 부화 · 성장 grow. 장면이 "지금 시작했다"고 알리는 순간에 난다.
+      //    (`then=fed`는 4.5초 뒤 분석을 마친 척 바뀐다 · `streak=6`이면 그 하루로 7일이 되어 성장 단계가 오른다)
+      {
+        const fire = async (query, label, wantKinds, banKinds = []) => {
+          const { page } = await openGarden(query);
+          check((await hapticLog(page)).length === 0, `${label} — 전환 전에는 햅틱 요청 없음`);
+          await page.getByTestId("pet-condition-chip").filter({ hasText: "배부름" }).waitFor({ timeout: 15_000 });
+          await page.waitForTimeout(1800);
+          const log = await hapticLog(page);
+          check(wantKinds.every((k) => log.includes(k)) && banKinds.every((k) => !log.includes(k)), `${label} — 햅틱 ${wantKinds.join(" + ")}`, log.join(","));
+          await page.close();
+        };
+        await fire("state=peckish&then=fed", "출출 → 밥 먹기", ["success"], ["recover", "grow"]);
+        await fire("state=starving&then=fed", "굶주림 → 밥 먹기 (회복)", ["recover"], ["success"]);
+        await fire("state=egg&then=fed", "알 → 첫 밥 (부화)", ["grow"], ["success", "recover"]);
+        await fire("state=peckish&streak=6&then=fed", "6일 → 7일 (성장 단계 상승)", ["success", "grow"], ["recover"]);
+
+        // 정지 모드에서는 장면이 시작하지 않으니 진동도 나지 않는다 (스크린샷 비교용 화면)
+        const quiet = await openGarden("state=peckish&then=fed&still=1");
+        await quiet.page.getByTestId("pet-condition-chip").filter({ hasText: "배부름" }).waitFor({ timeout: 15_000 });
+        await quiet.page.waitForTimeout(1800);
+        check((await hapticLog(quiet.page)).length === 0, "정지 모드 — 밥을 먹어도 햅틱 요청 없음", (await hapticLog(quiet.page)).join(","));
+        await quiet.page.close();
+      }
     }
   }
 

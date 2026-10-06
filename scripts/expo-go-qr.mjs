@@ -35,6 +35,11 @@ const port = flag("--port", "8081");
 const base = `exp://${host}:${port}`;
 
 const TARGETS = [
+  {
+    title: "쓰다듬기 · 햅틱 (아이폰 확인용)",
+    note: "톡 눌러 보기 · 좌우로 쓱쓱 문지르기 · 첫 탭 레벨업 · 둘째 탭 상한 달성 · 셋째부터 부드러운 진동",
+    url: `${base}/--/preview/garden?state=fed&today=3&total=9`,
+  },
   { title: "정원 3D 미리보기 (출출)", note: "출출한 강아지 · 눌러서 쓰다듬기", url: `${base}/--/preview/garden?state=peckish` },
   { title: "정원 3D 미리보기 (전설)", note: "왕관 · 스카프 · 오라의 고양이", url: `${base}/--/preview/garden?state=legend` },
   { title: "동물 확인 뷰어", note: "고양이 · 강아지 · 토끼 × 성장 단계 × 동작", url: `${base}/--/preview/clay` },

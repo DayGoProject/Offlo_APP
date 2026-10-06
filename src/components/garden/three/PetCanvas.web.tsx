@@ -20,9 +20,11 @@ function Pet({
   still = false,
   hold = null,
   eatSignal = 0,
+  eatRecovery = false,
   petSignal = 0,
   layout = VIEWER_LAYOUT,
   onReady,
+  onEvent,
   interactive = false,
 }: PetCanvasProps) {
   const uri = useMemo(() => Asset.fromModule(PET_MODELS[type] as unknown as number).uri, [type]);
@@ -33,6 +35,11 @@ function Pet({
   const readied = useRef(false);
 
   useEffect(() => () => scene.dispose(), [scene]);
+  // 장면이 밥 · 부화 · 성장을 "지금 시작했다"고 알리면 햅틱이 난다
+  useEffect(() => {
+    scene.setEventHandler(onEvent ?? null);
+    return () => scene.setEventHandler(null);
+  }, [scene, onEvent]);
   // 정지 모드(demand)는 값이 바뀔 때만 다시 그린다
   useEffect(() => {
     invalidate();
@@ -41,7 +48,7 @@ function Pet({
   useFrame((state, dt) => {
     if (eatSignal !== seen.current.eat) {
       seen.current.eat = eatSignal;
-      scene.requestFeed();
+      scene.requestFeed(eatRecovery);
     }
     if (petSignal !== seen.current.pet) {
       seen.current.pet = petSignal;

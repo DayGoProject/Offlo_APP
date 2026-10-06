@@ -1,8 +1,9 @@
 /**
  * 정원 탭 — 불러오기와 저장만 여기서, 그리기는 GardenView가 한다.
  *
- * 읽기는 Firestore(`readGarden`), 쓰기는 웹 API(`api.garden.selectAnimal`)뿐이다 — 경험치 · 연속 기록은 서버가 올리고
+ * 읽기는 Firestore(`readGarden`), 쓰기는 웹 API(`api.garden.selectAnimal` · `api.garden.pet`)뿐이다 — 경험치 · 연속 기록은 서버가 올리고
  * 앱은 `plant-exp`를 부르지 않는다 (docs/garden-game-design.md 기둥 5).
+ * 쓰다듬기는 화면에 먼저 반영하고 모아서 `api.garden.pet`으로 보낸다 (`hooks/use-pet-affection`).
  */
 import { useCallback, useRef, useState } from "react";
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
@@ -11,6 +12,7 @@ import { useAuth } from "@/auth-context";
 import GardenView from "@/components/garden/GardenView";
 import { useAnalysesChanged } from "@/hooks/analyses-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { usePetAffection } from "@/hooks/use-pet-affection";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/services/api-client";
 import { readGarden } from "@/services/garden";
@@ -48,6 +50,16 @@ export default function GardenTab() {
     }, [reload]),
   );
 
+  // 쓰다듬기 → 친밀도. 전송에 실패하면 서버 값을 다시 읽어 맞춘다
+  const affection = usePetAffection({
+    pet: garden.data?.animal?.pet,
+    scope: garden.data?.animal?.type ?? null,
+    now,
+    send: (count) => api.garden.pet(count),
+    active: focused,
+    onFailed: reload,
+  });
+
   const selectAnimal = async (type: AnimalTypeId, reset: boolean): Promise<boolean> => {
     setSaving(true);
     setActionError(null);
@@ -77,6 +89,7 @@ export default function GardenTab() {
       onFeed={() => router.navigate("/analysis")}
       animate={still !== "1"}
       active={focused}
+      affection={garden.data?.animal?.type ? affection : null}
     />
   );
 }
