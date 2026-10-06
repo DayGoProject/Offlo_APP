@@ -7,7 +7,7 @@ import { CircleGeometry, Group, Mesh, MeshBasicMaterial, SphereGeometry, Vector3
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 import { moodFor, type Mood } from "@/components/garden/art/moods";
-import type { PetCondition } from "@/logic/garden";
+import type { PetCondition } from "@/logic/pet-condition";
 import { ANIMAL_STAGES, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 
 import { makeAura, makeCrown, makeScarf, type Aura } from "./accessories";

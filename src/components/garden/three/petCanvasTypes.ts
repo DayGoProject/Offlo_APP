@@ -2,7 +2,7 @@
  * 3D 동물 캔버스의 공용 타입 · 화면 배치 — 네이티브(`PetCanvas.tsx`)와 웹(`PetCanvas.web.tsx`)이 같이 쓴다.
  * 배치(카메라 · 뿌리 위치 · 종별 배율)는 쓰는 자리마다 다르다: 확인용 뷰어(`ClayPetView`)와 정원 방(`PetStage`).
  */
-import type { PetCondition } from "@/logic/garden";
+import type { PetCondition } from "@/logic/pet-condition";
 import type { AnimalStatus, AnimalTypeId } from "@/shared/garden-utils";
 
 import type { HoldAction, PetEvent } from "./PetScene";

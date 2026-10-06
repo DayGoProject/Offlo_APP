@@ -6,7 +6,7 @@
  *   peckish   출출 — 눈이 커지고 빈 그릇을 보며 조바심 (저녁엔 더 빨라진다)
  *   starving  굶주림 — 귀 · 꼬리가 처지고 눈이 반쯤 감기고 살짝 떨린다. 죽지 않는다
  */
-import type { PetCondition } from "@/logic/garden";
+import type { PetCondition } from "@/logic/pet-condition";
 
 export type Mouth = "smile" | "open" | "flat" | "frown";
 

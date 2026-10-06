@@ -9,7 +9,7 @@
  *    (두 번 보내면 두 번 반영되는 요청이라 자동 재전송하지 않는다).
  *  · 하루 상한을 넘은 탭은 세지도 보내지도 않는다 — 화면 효과만 있다.
  */
-import type { PetCondition } from "@/logic/garden";
+import type { PetCondition } from "@/logic/pet-condition";
 import {
   PET_DAILY_CAP,
   affectionRatio,

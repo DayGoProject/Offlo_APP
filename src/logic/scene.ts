@@ -4,7 +4,7 @@
  * 시계는 **KST**다 (logic/garden.ts와 같다) — 서버의 "오늘"과 같은 시계로 하늘이 바뀌어야
  * 자정을 넘기는 순간 "새 날이 시작됐다"는 것이 장면에서도 느껴진다.
  */
-import type { PetCondition } from "@/logic/garden";
+import type { PetCondition } from "@/logic/pet-condition";
 import type { AnimalTypeId } from "@/shared/garden-utils";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
