@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/auth-context";
 import DashboardView, { type DashboardData } from "@/components/dashboard/DashboardView";
 import { useAnalysesChanged } from "@/hooks/analyses-changed";
+import { useGoalsChanged } from "@/hooks/goals-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { firstName, firstRecommendation } from "@/logic/dashboard";
 import { api } from "@/services/api";
@@ -40,6 +41,8 @@ export default function HomeTab() {
   });
   // 분석을 저장하면 오늘 스크린타임 · 점수 · 정원 경험치가 바뀐다
   useAnalysesChanged(dashboard.reload);
+  // 목표를 만들거나 완료하면 "진행 중인 목표"가 바뀐다
+  useGoalsChanged(dashboard.reload);
 
   return (
     <DashboardView
@@ -51,7 +54,7 @@ export default function HomeTab() {
       onRetry={dashboard.reload}
       onOpenHistory={() => router.push("/history")}
       onOpenAnalysis={() => router.navigate("/analysis")}
-      onOpenGoals={() => router.navigate("/more")}
+      onOpenGoals={() => router.push("/goals")}
       onOpenGarden={() => router.navigate("/garden")}
     />
   );

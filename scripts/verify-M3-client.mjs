@@ -166,6 +166,11 @@ const neverRetry = [
   ["goals.create", (c) => c.goals.create({ title: "t", targetMinutes: 60, startDate: "", endDate: "" })],
   ["goals.update", (c) => c.goals.update("g1", { status: "completed" })],
   ["users.deleteMe", (c) => c.users.deleteMe()],
+  ["goals.remove", (c) => c.goals.remove("g1")], // 두 번째 삭제는 404가 된다 — 응답을 잃은 첫 삭제가 이미 지웠을 수 있으니 다시 보내지 않는다
+  ["community.shareBadge", (c) => c.community.shareBadge("b1", "자랑")], // 두 번 가면 글이 두 개 생긴다 (서버는 이미 공유한 배지를 409로 막는다)
+  ["community.createComment", (c) => c.community.createComment("p1", "댓글")],
+  ["community.deletePost", (c) => c.community.deletePost("p1")],
+  ["community.deleteComment", (c) => c.community.deleteComment("c1")],
 ];
 for (const [name, call] of neverRetry) {
   const s = scenario([offline()]);
@@ -174,6 +179,7 @@ for (const [name, call] of neverRetry) {
 }
 const safeRetry = [
   ["users.ensure", (c) => c.users.ensure({ email: "a@b.c", name: "n" })],
+  ["users.updateName", (c) => c.users.updateName("새 이름")],
   ["garden.selectAnimal", (c) => c.garden.selectAnimal("cat", false)],
   ["notifications.markRead", (c) => c.notifications.markRead("n1")],
   ["notifications.markAllRead", (c) => c.notifications.markAllRead()],

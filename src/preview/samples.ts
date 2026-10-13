@@ -8,7 +8,8 @@
 import type { DashboardData } from "@/components/dashboard/DashboardView";
 import type { AnalysisRecords } from "@/logic/analysis";
 import type { ChatItem } from "@/logic/chat";
-import type { Analysis, AnalysisSummary, GardenSnapshot, Goal } from "@/services/api-types";
+import type { BadgeStats } from "@/logic/badges";
+import type { Analysis, AnalysisSummary, ApiUser, Badge, FeedComment, FeedPost, GardenSnapshot, Goal, RankingEntry } from "@/services/api-types";
 
 export const SAMPLE_NOW = new Date(2026, 8, 17, 10, 0, 0);
 export const SAMPLE_NAME = "지우";
@@ -225,6 +226,126 @@ export function gardenWeekRecords(daily: number, weeklyDone: boolean): AnalysisR
       : [],
   };
 }
+
+/* ── M7 · 설정 ────────────────────────────────────────────────── */
+
+/** 지어낸 계정 — 실제 사용자 이름 · 이메일을 복사해 넣지 않는다 (Public 레포 · security.md) */
+export const SETTINGS_USER: ApiUser = {
+  id: "sample-id",
+  uid: "sample-uid",
+  email: "sample@example.com",
+  name: "지우",
+  premium: false,
+  createdAt: "2026-08-01T00:00:00.000Z",
+};
+
+/* ── M7 · 커뮤니티 ────────────────────────────────────────────── */
+
+const FEED_NAMES = ["민준", "서연", "하준", "도윤", "수아", "지우"] as const;
+const FEED_TEXTS = [
+  "오늘 처음으로 저녁 3시간을 폰 없이 보냈어요. 산책하고 오니 머리가 맑아졌어요.",
+  "자기 전에 폰을 거실에 두니 잠드는 시간이 확 빨라졌어요. 추천합니다!",
+  "알림을 전부 끄고 하루를 보냈더니 확인하는 횟수가 반으로 줄었어요.",
+  "주말에 영상 시청을 2시간으로 제한해 봤는데 생각보다 할 만하네요.",
+  "다들 화이팅! 작은 상한부터 시작해도 충분해요.",
+] as const;
+
+/** 서버가 최신순으로 주는 모양 그대로 — 25개 (10 · 10 · 5개 세 페이지). `p-03`과 `p-12`는 내 글, 몇 개는 배지 자랑 글이다 */
+export const COMMUNITY_POSTS: FeedPost[] = Array.from({ length: 25 }, (_, i) => {
+  const n = i + 1;
+  const badge = n % 7 === 0;
+  const mine = n === 3 || n === 12;
+  return {
+    id: `p-${String(n).padStart(2, "0")}`,
+    type: badge ? ("badge" as const) : ("text" as const),
+    content: badge ? (n % 2 === 0 ? "드디어 달성했어요!" : "") : FEED_TEXTS[i % FEED_TEXTS.length],
+    badgeName: badge ? (n % 2 === 0 ? "7일 연속" : "첫 분석") : null,
+    likeCount: (i * 3) % 11,
+    commentCount: n <= 3 ? n : 0,
+    // 5분 전부터 7시간 간격으로 거슬러 간다 — 마지막 글은 7일이 넘어 날짜로 보인다
+    createdAt: new Date(SAMPLE_NOW.getTime() - (5 + n * 420) * 60_000).toISOString(),
+    authorName: mine ? "지우" : FEED_NAMES[i % 5],
+    isMine: mine,
+    liked: n === 2 || n === 5,
+  };
+});
+
+export const COMMUNITY_COMMENTS: Record<string, FeedComment[]> = {
+  "p-01": [{ id: "c-1", content: "저도 어제 해봤는데 정말 좋았어요!", createdAt: new Date(SAMPLE_NOW.getTime() - 3 * 60_000).toISOString(), authorName: "서연", isMine: false }],
+  "p-02": [
+    { id: "c-2", content: "응원합니다 💪", createdAt: new Date(SAMPLE_NOW.getTime() - 50 * 60_000).toISOString(), authorName: "하준", isMine: false },
+    { id: "c-3", content: "나도 따라 해볼게요.", createdAt: new Date(SAMPLE_NOW.getTime() - 20 * 60_000).toISOString(), authorName: "지우", isMine: true },
+  ],
+  "p-03": [
+    { id: "c-4", content: "첫 댓글!", createdAt: new Date(SAMPLE_NOW.getTime() - 5 * 3_600_000).toISOString(), authorName: "민준", isMine: false },
+    { id: "c-5", content: "대단해요.", createdAt: new Date(SAMPLE_NOW.getTime() - 2 * 3_600_000).toISOString(), authorName: "수아", isMine: false },
+    { id: "c-6", content: "저도 같은 마음이에요.", createdAt: new Date(SAMPLE_NOW.getTime() - 40 * 60_000).toISOString(), authorName: "서연", isMine: false },
+  ],
+};
+
+const rankEntry = (rank: number, name: string, avgScore: number, isMe = false): RankingEntry => ({ rank, name, avgScore, analysisCount: 7 - Math.min(4, rank % 5), isMe });
+
+/** 랭킹 Top 10 — 내가 4위 */
+export const RANKING_READY = {
+  ranking: [
+    rankEntry(1, "하준", 91),
+    rankEntry(2, "서연", 88),
+    rankEntry(3, "민준", 86),
+    rankEntry(4, "지우", 83, true),
+    rankEntry(5, "수아", 80),
+    rankEntry(6, "도윤", 77),
+    rankEntry(7, "유나", 74),
+    rankEntry(8, "시우", 72),
+    rankEntry(9, "예린", 70),
+    rankEntry(10, "건우", 68),
+  ],
+  myRank: rankEntry(4, "지우", 83, true),
+  minAnalyses: 3,
+};
+
+/** Top 10 밖 — 내 순위 14위를 따로 보인다 */
+export const RANKING_OUTSIDE = { ...RANKING_READY, ranking: RANKING_READY.ranking.map((r) => ({ ...r, isMe: false })), myRank: rankEntry(14, "지우", 61, true) };
+
+export const RANKING_EMPTY = { ranking: [] as RankingEntry[], myRank: null, minAnalyses: 3 };
+
+/* ── M7 · 배지 ────────────────────────────────────────────────── */
+
+/** 획득한 배지 둘(하나는 이미 자랑함) — 나머지 둘(주간 분석 완료 · 목표 달성)은 잠겨 있다 */
+export const BADGES_READY: Badge[] = [
+  { id: "bd-1", userId: "sample", name: "7일 연속", earnedAt: "2026-09-16T12:00:00.000Z", shared: false },
+  { id: "bd-2", userId: "sample", name: "첫 분석", earnedAt: "2026-09-10T12:00:00.000Z", shared: true },
+];
+
+/** 이번 주 일간 3개 · 연속 5일 — 잠긴 배지의 진행도 */
+export const BADGE_STATS: BadgeStats = { total: 14, weekly: 1, dailyThisWeek: 3, streak: 5 };
+
+/* ── M7 · 목표 ────────────────────────────────────────────────── */
+
+/**
+ * 목표 샘플 — 서버가 날짜를 UTC 자정으로 저장하는 모양 그대로다 (`"2026-09-14T00:00:00.000Z"`).
+ * 기준일은 2026-09-17(목 · 한국 시간)이다: 진행 중 · 곧 끝남 · 이미 끝난 기간 · 시작 전 · 완료 두 개.
+ */
+function goal(id: string, title: string, targetMinutes: number, start: string, end: string, status: Goal["status"] = "active"): Goal {
+  return {
+    id,
+    userId: "sample",
+    title,
+    targetMinutes,
+    startDate: `${start}T00:00:00.000Z`,
+    endDate: `${end}T00:00:00.000Z`,
+    status,
+    createdAt: `${start}T03:00:00.000Z`,
+  };
+}
+
+export const GOALS_READY: Goal[] = [
+  goal("ga", "하루 4시간 이하", 240, "2026-09-14", "2026-09-20"),
+  goal("gb", "잠들기 전 SNS 끊기", 60, "2026-09-15", "2026-09-29"),
+  goal("gc", "주말 영상 줄이기", 120, "2026-09-01", "2026-09-10"),
+  goal("gd", "다음 주 유튜브 1시간", 60, "2026-09-21", "2026-09-27"),
+  goal("ge", "일주일 3시간 이하", 180, "2026-09-01", "2026-09-07", "completed"),
+  goal("gf", "SNS 하루 30분", 30, "2026-08-20", "2026-08-26", "completed"),
+];
 
 /** 상태별 샘플 — 마지막 분석일이 기준일과 며칠 떨어졌는지가 동물 상태를 정한다 (logic/garden.ts) */
 export const GARDEN_SAMPLES: Record<string, GardenSnapshot> = {

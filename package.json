@@ -81,6 +81,12 @@
     "verify:M6-pet-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M6-pet-api.mjs",
     "verify:M6-web": "node scripts/verify-M6-web.mjs",
     "verify:M6-android": "node scripts/verify-M6-android.mjs",
+    "verify:M7": "npm run verify:M6 && npm run verify:M7-logic && npm run verify:M7-users-api && npm run verify:M7-goals-api && node scripts/verify-M7-web.mjs && node scripts/verify-M7-android.mjs",
+    "verify:M7-logic": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M7-logic.mjs",
+    "verify:M7-users-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M7-users-api.mjs",
+    "verify:M7-goals-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M7-goals-api.mjs",
+    "verify:M7-web": "node scripts/verify-M7-web.mjs",
+    "verify:M7-android": "node scripts/verify-M7-android.mjs",
     "android:build": "expo run:android --no-bundler"
   },
   "private": true

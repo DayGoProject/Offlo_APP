@@ -61,6 +61,53 @@ const SCREENS: { path: string; title: string; states: readonly { state: string; 
     ],
   },
   {
+    path: "/preview/goals",
+    title: "목표 관리 (더보기 → 목표)",
+    states: [
+      { state: "ready", label: "진행 중 4 · 완료 2" },
+      { state: "empty", label: "첫 사용 (비어 있음)" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
+    path: "/preview/badges",
+    title: "배지 (더보기 → 배지)",
+    states: [
+      { state: "ready", label: "획득 2 · 잠김 2" },
+      { state: "all", label: "모두 획득 (잠긴 배지 없음)" },
+      { state: "empty", label: "첫 사용 (획득 없음)" },
+      { state: "nostats", label: "진행도를 못 읽음" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
+    path: "/preview/community",
+    title: "커뮤니티 (커뮤니티 탭)",
+    states: [
+      { state: "ready", label: "피드 25개 (10개씩 세 페이지)" },
+      { state: "empty", label: "첫 사용 (글 없음)" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+      { state: "ranking", label: "주간 랭킹 — 내가 4위" },
+      { state: "ranking-outside", label: "주간 랭킹 — Top 10 밖(14위)" },
+      { state: "ranking-empty", label: "주간 랭킹 — 아직 없음" },
+      { state: "ranking-loading", label: "주간 랭킹 — 불러오는 중" },
+      { state: "ranking-error", label: "주간 랭킹 — 불러오기 실패" },
+    ],
+  },
+  {
+    path: "/preview/settings",
+    title: "설정 (더보기 → 설정)",
+    states: [
+      { state: "ready", label: "무료 플랜" },
+      { state: "premium", label: "프리미엄" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
     path: "/preview/chat",
     title: "AI 코치 채팅",
     states: [

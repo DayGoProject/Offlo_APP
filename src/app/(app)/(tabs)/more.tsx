@@ -51,9 +51,9 @@ export default function MoreTab() {
 
       <Card style={styles.menuCard}>
         <MenuRow label="분석 기록" onPress={() => router.push("/history")} testID="menu-history" />
-        <MenuRow label="목표" badge="M7" />
-        <MenuRow label="배지" badge="M7" />
-        <MenuRow label="설정" badge="M7" last />
+        <MenuRow label="목표" onPress={() => router.push("/goals")} testID="menu-goals" />
+        <MenuRow label="배지" onPress={() => router.push("/badges")} testID="menu-badges" />
+        <MenuRow label="설정" onPress={() => router.push("/settings")} testID="menu-settings" last />
       </Card>
 
       <Card style={styles.menuCard}>

@@ -12,6 +12,7 @@ import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "e
 import { useAuth } from "@/auth-context";
 import GardenView from "@/components/garden/GardenView";
 import { useAnalysesChanged } from "@/hooks/analyses-changed";
+import { useGoalsChanged } from "@/hooks/goals-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { usePetAffection } from "@/hooks/use-pet-affection";
 import { WEEKLY_THRESHOLD, type AnalysisRecords } from "@/logic/analysis";
@@ -38,6 +39,8 @@ export default function GardenTab() {
   });
   // 분석을 저장하면 밥을 먹은 것이다 — 연속 기록 · 식물 경험치 · 동물 상태가 바뀐다
   useAnalysesChanged(garden.reload);
+  // 목표를 완료하면 서버가 식물 경험치를 준다 (+20분)
+  useGoalsChanged(garden.reload);
 
   // 이번 주 분석 기록 — 주간 분석 미션 전용. 실패해도 정원 화면을 막지 않는다 (미션 줄만 "불러오지 못했어요")
   const records = useApiQuery<AnalysisRecords>(async (signal) => {

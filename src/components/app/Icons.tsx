@@ -105,3 +105,33 @@ export function BackIcon({ color, size = 20 }: IconProps) {
     </Svg>
   );
 }
+
+/** 좋아요 하트 — 눌렀으면 채우고(`filled`) 아니면 선만 (16 뷰박스 · 웹 PostCard) */
+export function HeartIcon({ color, size = 16, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16">
+      <Path
+        d="M8 13.6 3.2 9a2.9 2.9 0 0 1 4.1-4.1L8 5.6l.7-.7A2.9 2.9 0 0 1 12.8 9L8 13.6z"
+        fill={filled ? color : "none"}
+        stroke={filled ? "none" : color}
+        strokeWidth={1.3}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** 댓글 말풍선 (16 뷰박스 · 웹 PostCard) */
+export function CommentIcon({ color, size = 16 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16">
+      <Path
+        d="M2.4 7.4c0-2.6 2.5-4.6 5.6-4.6s5.6 2 5.6 4.6-2.5 4.6-5.6 4.6c-.7 0-1.4-.1-2-.3l-2.8 1.1.7-2.3a4.3 4.3 0 0 1-1.5-3.1z"
+        fill="none"
+        stroke={color}
+        strokeWidth={1.3}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

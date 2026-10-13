@@ -276,6 +276,12 @@ export function createApiClient(options: ApiClientOptions) {
       /** 로그인할 때마다 부른다 — 서버가 uid 기준 upsert라 여러 번 보내도 결과가 같다 */
       ensure: (input: { email: string; name: string }) =>
         request<{ user: ApiUser }>("POST", "/api/users", { body: input, idempotent: true }),
+      /**
+       * 이름 변경 — 커뮤니티 피드 · 랭킹에 보이는 서버의 이름을 바꾼다. 같은 이름을 다시 보내도 결과가 같다 (멱등).
+       * 웹 `PATCH /api/users/me` — 서버가 이 라우트를 배포하기 전에는 404/405가 온다 (`logic/settings.ts` `nameSaveHint`)
+       */
+      updateName: (name: string) =>
+        request<{ user: ApiUser }>("PATCH", "/api/users/me", { body: { name }, idempotent: true }),
       /** 회원 탈퇴 — Supabase · Firestore · Firebase Auth 계정까지 지운다 */
       deleteMe: () => request<{ ok: true }>("DELETE", "/api/users/me"),
     },
