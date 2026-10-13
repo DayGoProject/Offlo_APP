@@ -1,6 +1,7 @@
 /**
  * 정원 미리보기 — `?state=fed|peckish|starving|egg|none|legend|loading|error` (`&still=1`이면 동물 정지 포즈 · `&minutes=N`이면 식물 경험치 덮어쓰기 ·
  * `&streak=N`이면 연속 기록 덮어쓰기 · `&then=fed`이면 4.5초 뒤 같은 동물이 밥을 먹은 상태로 바뀌며 먹는 연출이 돈다 — 연속 기록이 하루 늘어 단계 경계를 넘으면 성장 연출).
+ * 미션: `&week=N`(이번 주 일간 분석 N개 · 기본 4) · `&week=done`(이번 주 주간 분석까지 받음) · `&week=error`(기록을 못 불러옴) · `&week=loading`(불러오는 중).
  * 쓰다듬기: `&today=N`(오늘 이미 쌓은 횟수) · `&total=N`(누적)으로 시작 값을 정하고, `&petfail=1`이면 서버 전송이 실패한다 (친밀도 카드 · 상한 · 레벨업 확인용).
  * 샘플 값만 쓴다 (api · useAuth 금지). 동물 선택 · 변경은 화면 안에서 눌러 본다 — 저장은 하지 않고 성공한 것으로 돌려준다.
  * 쓰다듬기 전송도 가짜다: 서버가 하는 일(`applyPetTaps`)을 같은 함수로 흉내 낸다.
@@ -10,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 import GardenView from "@/components/garden/GardenView";
 import { usePetAffection } from "@/hooks/use-pet-affection";
-import { GARDEN_NOW, GARDEN_SAMPLES } from "@/preview/samples";
+import { GARDEN_NOW, GARDEN_SAMPLES, gardenWeekRecords } from "@/preview/samples";
 import { API_MESSAGES, ApiError } from "@/services/api-client";
 import { applyPetTaps, type PetRecord } from "@/shared/garden-utils";
 import { kstDateKey } from "@/shared/kst";
@@ -20,7 +21,7 @@ const noop = () => {};
 const THEN_AFTER_MS = 4500;
 
 export default function GardenPreview() {
-  const { state = "fed", still, minutes, streak, then, today, total, petfail } = useLocalSearchParams<{
+  const { state = "fed", still, minutes, streak, then, today, total, petfail, week = "4" } = useLocalSearchParams<{
     state?: string;
     still?: string;
     minutes?: string;
@@ -29,6 +30,7 @@ export default function GardenPreview() {
     today?: string;
     total?: string;
     petfail?: string;
+    week?: string;
   }>();
   const [fedNow, setFedNow] = useState(false);
   useEffect(() => {
@@ -82,6 +84,14 @@ export default function GardenPreview() {
     },
   });
 
+  // 이번 주 분석 기록 — 주간 분석 미션
+  const weekCount = Number(week);
+  const weekRecords =
+    week === "error" || week === "loading"
+      ? null
+      : gardenWeekRecords(week === "done" ? 7 : Number.isFinite(weekCount) ? weekCount : 4, week === "done");
+  const weekStatus = week === "error" ? "error" : week === "loading" ? "loading" : "ready";
+
   return (
     <GardenView
       now={GARDEN_NOW}
@@ -95,6 +105,8 @@ export default function GardenPreview() {
       onFeed={noop}
       animate={still !== "1"}
       affection={data?.animal?.type ? affection : null}
+      weekRecords={weekRecords}
+      weekStatus={weekStatus}
     />
   );
 }

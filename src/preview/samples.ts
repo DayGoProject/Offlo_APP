@@ -203,6 +203,29 @@ export const CHAT_MESSAGES: ChatItem[] = [
 /** 기준 시각 — KST 2026-09-17 10:00. 기기 시간대와 무관하게 서버 기준 날짜가 같다 */
 export const GARDEN_NOW = Date.UTC(2026, 8, 17, 1, 0, 0);
 
+/**
+ * 정원 미리보기의 "이번 주 분석 기록" — 기준일(2026-09-17 · 한국 시간 월 9/14 ~ 일 9/20) 주에 일간 `daily`개(월요일부터 차례로)와
+ * 선택적으로 이번 주 주간 분석 1건. 오늘의 미션 중 "주간 분석 받기" 줄이 이 값으로 그려진다.
+ */
+export function gardenWeekRecords(daily: number, weeklyDone: boolean): AnalysisRecords {
+  const at = (day: number) => new Date(Date.UTC(2026, 8, 14 + day, 12, 0, 0)).toISOString(); // 한국 시간 21시 — 같은 날짜
+  const count = Math.max(0, Math.min(7, Math.floor(daily)));
+  return {
+    // API는 최신순으로 준다
+    daily: Array.from({ length: count }, (_, i) => count - 1 - i).map((i) => ({
+      id: `gw-${i}`,
+      periodType: "daily" as const,
+      totalMinutes: 250 + i * 9,
+      detoxScore: 60 + i,
+      isPremium: false,
+      createdAt: at(i),
+    })),
+    weekly: weeklyDone
+      ? [{ id: "gw-weekly", periodType: "weekly" as const, totalMinutes: 1800, detoxScore: 62, isPremium: false, createdAt: at(2) }]
+      : [],
+  };
+}
+
 /** 상태별 샘플 — 마지막 분석일이 기준일과 며칠 떨어졌는지가 동물 상태를 정한다 (logic/garden.ts) */
 export const GARDEN_SAMPLES: Record<string, GardenSnapshot> = {
   /** 오늘 분석함 → fed */

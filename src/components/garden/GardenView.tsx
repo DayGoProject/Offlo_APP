@@ -18,10 +18,12 @@ import Skeleton from "@/components/app/Skeleton";
 import AffectionCard from "@/components/garden/AffectionCard";
 import AnimalPicker from "@/components/garden/AnimalPicker";
 import ChangeAnimalModal, { type ChangeAnimalTarget } from "@/components/garden/ChangeAnimalModal";
+import MissionCard from "@/components/garden/MissionCard";
 import PetStage from "@/components/garden/PetStage";
 import PlantThumb from "@/components/garden/PlantThumb";
 import ProgressFoot from "@/components/garden/ProgressFoot";
 import type { AffectionControls } from "@/hooks/use-pet-affection";
+import type { AnalysisRecords } from "@/logic/analysis";
 import {
   animalProgress,
   conditionCopy,
@@ -29,6 +31,7 @@ import {
   plantProgress,
   streakOutlook,
 } from "@/logic/garden";
+import { missionBoard, type WeekStatus } from "@/logic/mission";
 import type { GardenSnapshot } from "@/services/api-types";
 import { ANIMAL_STAGES, ANIMAL_TYPES, PLANT_LEVELS, type AnimalTypeId } from "@/shared/garden-utils";
 import { colors, fonts } from "@/theme";
@@ -52,8 +55,11 @@ export interface GardenViewProps {
   animate?: boolean;
   /** false면 3D 프레임 루프를 멈춘다 (탭이 포커스를 잃었을 때 — 기본 true) */
   active?: boolean;
-  /** 쓰다듬기 · 친밀도 — 없으면 쓰다듬어도 화면 효과만 있고 친밀도 카드도 없다 */
+  /** 쓰다듬기 · 친밀도 — 없으면 쓰다듬어도 화면 효과만 있고 친밀도 · 미션 카드도 없다 */
   affection?: AffectionControls | null;
+  /** 이번 주 분석 기록 — 주간 분석 미션이 쓴다 (불러오지 못했으면 null) */
+  weekRecords?: AnalysisRecords | null;
+  weekStatus?: WeekStatus;
 }
 
 const grouped = (n: number) => n.toLocaleString("ko-KR");
@@ -71,6 +77,8 @@ export default function GardenView({
   animate = true,
   active = true,
   affection = null,
+  weekRecords = null,
+  weekStatus = "loading",
 }: GardenViewProps) {
   // 변경 중(선택 화면) · 경고 모달 — 화면 안에서만 쓰는 상태
   const [changing, setChanging] = useState(false);
@@ -120,6 +128,10 @@ export default function GardenView({
   const progress = animalProgress(animal.streak);
   const typeName = ANIMAL_TYPES.find((t) => t.id === type)?.name ?? "";
   const needsFood = condition !== "fed";
+  // 오늘의 미션 — 서버에 이미 있는 값(분석일 · 쓰다듬기 기록 · 분석 목록)에서 계산한다
+  const board = affection
+    ? missionBoard({ condition, petToday: affection.view.today, records: weekRecords, weekStatus, now })
+    : null;
 
   return (
     <Screen testID="garden" underTabBar refreshing={loading} onRefresh={onRetry}>
@@ -160,6 +172,8 @@ export default function GardenView({
               </View>
             ) : null}
           </Card>
+
+          {board ? <MissionCard board={board} onGoAnalysis={onFeed} /> : null}
 
           {affection ? <AffectionCard view={affection.view} error={affection.error} /> : null}
         </>

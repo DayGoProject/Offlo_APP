@@ -8,26 +8,29 @@
  * 화면(GardenView)에 넘기는 값은 그대로다: 종류 · 연속 기록 · 상태 (+ 식물 경험치 · 지금 시각).
  * 모든 좌표는 방의 360 × 418 단위이고, 실제 폭에 맞춰 한 배율(k)로 늘린다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 
+import CelebrationLayer, { type Celebration } from "@/components/garden/CelebrationLayer";
 import PetTouch from "@/components/garden/PetTouch";
 import PlantImage from "@/components/garden/PlantImage";
 import Bowl from "@/components/garden/art/Bowl";
 import Egg from "@/components/garden/art/Egg";
 import Pet from "@/components/garden/art/Pet";
 import Room, { ROOM_H, ROOM_W } from "@/components/garden/art/Room";
+import type { BurstKind } from "@/components/garden/art/celebration";
 import SpeechBubble, { useSpeech } from "@/components/garden/art/SpeechBubble";
 import PetCanvas from "@/components/garden/three/PetCanvas";
 import PetErrorBoundary from "@/components/garden/three/PetErrorBoundary";
 import type { PetEvent } from "@/components/garden/three/PetScene";
 import { ROOM_LAYOUT } from "@/components/garden/three/petCanvasTypes";
 import { CONDITION_LABEL, type PetCondition } from "@/logic/garden";
+import { celebrationLine, missionDoneLine, nameCard, petMissionJustDone } from "@/logic/mission";
 import { levelUpLine, reactionLine, type TapResult } from "@/logic/pet";
 import { dayPartOf, isAnxious, speechLines } from "@/logic/scene";
 import { haptic, type HapticKind } from "@/services/haptics";
-import { getAnimalStage, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
+import { ANIMAL_STAGES, ANIMAL_TYPES, getAnimalStage, type AnimalStatus, type AnimalTypeId } from "@/shared/garden-utils";
 import { colors, fonts, radius } from "@/theme";
 
 /** 동물 캔버스(정사각) 한 변과 중심 x · 바닥이 닿는 y — 방 좌표 (SVG 폴백) */
@@ -46,9 +49,6 @@ const REACTION_MS = 2400;
 
 /** 장면이 알리는 일 → 햅틱 (프레임 루프가 도는 동안, 시작하는 그 순간에 난다) */
 const EVENT_HAPTIC: Record<PetEvent, HapticKind> = { eat: "success", recover: "recover", hatch: "grow", stageUp: "grow" };
-function playPetEvent(event: PetEvent) {
-  haptic(EVENT_HAPTIC[event]);
-}
 
 export default function PetStage({
   type,
@@ -135,15 +135,49 @@ export default function PetStage({
     setReaction(text);
     reactionTimer.current = text ? setTimeout(() => setReaction(null), REACTION_MS) : null;
   };
+
+  // ── 축하 연출 (6-5) ──────────────────────────────────────────
+  // 밥 · 회복 · 부화 · 성장은 장면이 "지금 시작했다"고 알릴 때(프레임 루프가 돌 때) 방 위에 빛 · 입자 · 이름 카드를 얹는다. 미션 완료는 쓰다듬는 순간에
+  // 여러 개가 겹칠 수 있다 — 부화 · 성장은 밥 먹기와 같은 순간에 시작한다 (밥 반짝이가 1.5초 뒤에 이어진다)
+  const [celebrations, setCelebrations] = useState<Celebration[]>([]);
+  const celebrationSeq = useRef(0);
+  const startCelebration = (kind: BurstKind, card: Celebration["card"] = null) => {
+    celebrationSeq.current += 1;
+    const next: Celebration = { id: celebrationSeq.current, kind, card };
+    setCelebrations((list) => [...list.slice(-2), next]);
+  };
+  const endCelebration = useCallback((id: number) => setCelebrations((list) => list.filter((c) => c.id !== id)), []);
+
+  // 장면 이벤트 핸들러는 `PetCanvas`가 한 번 등록해 두므로 늘 최신 값을 읽게 한다
+  const latest = useRef({ type, stage3d, say, startCelebration });
+  useEffect(() => {
+    latest.current = { type, stage3d, say, startCelebration };
+  });
+  const onSceneEvent = useCallback((event: PetEvent) => {
+    haptic(EVENT_HAPTIC[event]);
+    const { type: t, stage3d: st, say: speak, startCelebration: start } = latest.current;
+    if (event === "eat" || event === "recover") {
+      speak(celebrationLine(event, t));
+      start(event);
+      return;
+    }
+    const stageName = ANIMAL_STAGES.find((s) => s.status === st)?.name ?? "";
+    const typeName = ANIMAL_TYPES.find((x) => x.id === t)?.name ?? "";
+    start(event, nameCard(event, stageName, typeName));
+  }, []);
+
   /** 한 번 닿았다(탭) 또는 문지르기를 마쳤다 — 친밀도는 여기서 한 번만 센다 */
   const touched = (stroke: boolean) => {
     const r = onPet?.();
+    const missionDone = r ? petMissionJustDone(r.counted, r.view.today) : false;
     if (!stroke) setPetSignal((n) => n + 1);
-    if (r?.levelUp || r?.reachedCap) haptic("success");
+    if (r?.levelUp || r?.reachedCap || missionDone) haptic("success");
     else if (!stroke) haptic(condition === "starving" || (r && !r.counted) ? "soft" : "tap");
     if (r?.levelUp) say(levelUpLine(r.view));
+    else if (missionDone) say(missionDoneLine(condition === "fed"));
     else if (r && (r.reachedCap || !r.counted)) say(reactionLine(condition, type, "capped", turn.current++));
     else if (!stroke) say(reactionLine(condition, type, "pet", turn.current++));
+    if (missionDone) startCelebration("mission");
   };
   /** 문지르는 중 구간 하나 — 틱 + 반응 이어가기 (첫 구간에서 한마디) */
   const stroking = (ticks: number) => {
@@ -207,7 +241,7 @@ export default function PetStage({
                   eatRecovery={eatRecovery}
                   petSignal={petSignal}
                   onReady={() => setReady3d(true)}
-                  onEvent={playPetEvent}
+                  onEvent={onSceneEvent}
                 />
               </PetErrorBoundary>
             </Animated.View>
@@ -235,6 +269,11 @@ export default function PetStage({
             <View style={[styles.dot, { backgroundColor: condition === "fed" ? colors.brand : colors.textFaint }]} />
             <Text style={styles.chipText}>{CONDITION_LABEL[condition]}</Text>
           </View>
+
+          {/* 축하 연출 — 빛 · 폭죽 · 이름 카드 (터치를 받지 않는다) */}
+          {celebrations.map((c) => (
+            <CelebrationLayer key={c.id} celebration={c} k={k} onDone={endCelebration} />
+          ))}
         </>
       ) : null}
     </View>

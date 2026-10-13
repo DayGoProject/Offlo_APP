@@ -18,6 +18,8 @@
  *   6. 미리보기 샘플이 의도한 상태로 계산되는가
  *   7. 친밀도(쓰다듬기) — 승인된 수치(하루 5회 · 레벨 5단계 0/10/30/70/130) · 레벨 경계 · 상한 · KST 자정 · 깨진 값 · 두 기기 동시 · 동물 변경 시 초기화
  *   8. 쓰다듬기 상태(logic/pet.ts, 6-4) — 낙관적 갱신 · 상한 · 레벨업 · 묶음 전송(보내는 중 · 응답 · 실패 · 서버 값으로 맞춤) · 새 날 · 반응 대사
+ *   9. 오늘의 미션(logic/mission.ts, 6-5) — 밥 · 쓰다듬기 3번 · 이번 주 주간 분석(KST 주 경계 · 지난주 · 불러오기 실패) · 미션을 막 채운 순간 · 연출 문구
+ *  10. 축하 연출(art/celebration.ts, 6-5) — 종류별 입자 수 · 같은 시드는 같은 모양 · 빛 · 이름 카드 · 입자 운동(방 안에서 시작해 솟았다 떨어짐 · 사라짐)
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -359,6 +361,128 @@ const NOW = at(2026, 9, 17, 10, 0);
   check(P.reactionLine("none", "cat", "pet", 0) === null && P.reactionLine("fed", null, "pet", 0) === null, "동물을 안 골랐으면 대사 없음");
   check(P.reactionLine("fed", "cat", "pet", -1) !== null && P.reactionLine("fed", "cat", "pet", 7) === P.reactionLine("fed", "cat", "pet", 1), "대사 번호는 음수 · 큰 수도 순환");
   check(P.levelUpLine(lv.view) === "친밀도 Lv.2 · 조심스러운 사이!", "레벨업 말풍선", P.levelUpLine(lv.view));
+}
+
+/* ── 9. 오늘의 미션 (6-5) ───────────────────────────────────── */
+{
+  const M = await import(pathToFileURL(join(SRC, "logic", "mission.ts")).href);
+  const kstIso = (mo, d, h, mi = 0) => new Date(at(2026, mo, d, h, mi)).toISOString();
+  const sum = (id, periodType, iso) => ({ id, periodType, totalMinutes: 240, detoxScore: 60, isPremium: false, createdAt: iso });
+  /** 이번 주(월 9/14 ~ 일 9/20) 일간 n개 — 월요일부터 (API는 최신순) */
+  const week = (n, weekly = []) => ({
+    daily: Array.from({ length: n }, (_, i) => sum(`d${i}`, "daily", kstIso(9, 14 + i, 21))).reverse(),
+    weekly,
+  });
+  const board = (over = {}) => M.missionBoard({ condition: "peckish", petToday: 0, records: week(3), weekStatus: "ready", now: NOW, ...over });
+  const by = (b, id) => b.missions.find((m) => m.id === id);
+
+  // 구성 — 오늘 둘 + 이번 주 하나
+  const b0 = board();
+  check(b0.missions.map((m) => m.id).join() === "feed,pet,weekly" && b0.missions.map((m) => m.period).join() === "today,today,week", "미션은 밥 · 쓰다듬기(오늘) + 주간 분석(이번 주) 셋");
+  check(b0.todayTotal === 2 && b0.todayDone === 0 && !b0.allTodayDone, "오늘 미션은 둘 — 처음엔 0 / 2");
+
+  // 밥 주기 — 동물 상태에서 온다
+  check(by(board({ condition: "fed" }), "feed").done && !by(board({ condition: "fed" }), "feed").goesToAnalysis, "밥 — 오늘 분석했으면(fed) 완료");
+  for (const c of ["peckish", "starving", "egg"]) check(!by(board({ condition: c }), "feed").done && by(board({ condition: c }), "feed").goesToAnalysis, `밥 — ${c}면 미완료 · 분석 탭으로 보낸다`);
+  check(by(board({ condition: "egg" }), "feed").title === "알 부화시키기" && by(board({ condition: "peckish" }), "feed").title === "밥 주기", "알이면 제목이 \"알 부화시키기\"");
+
+  // 쓰다듬기 3번 — 인정된 횟수
+  const pet = (n) => by(board({ petToday: n }), "pet");
+  check(M.PET_MISSION_TARGET === 3, "쓰다듬기 목표는 3번 (하루 상한 5번보다 작다)");
+  check(pet(0).progress.value === 0 && !pet(0).done && pet(2).progress.value === 2 && !pet(2).done, "0 · 2번은 미완료 (0 / 3 · 2 / 3)");
+  check(pet(3).done && pet(3).progress.value === 3, "3번이면 완료");
+  check(pet(5).done && pet(5).progress.value === 3 && pet(5).progress.target === 3, "상한 5번까지 쌓아도 진행은 3 / 3에서 멈춘다");
+  check(pet(-4).progress.value === 0 && pet(Number.NaN).progress.value === 0 && pet(2.9).progress.value === 2, "깨진 값은 0 · 소수는 버린다");
+  check(!pet(0).goesToAnalysis && !pet(3).goesToAnalysis, "쓰다듬기 줄은 어디로도 보내지 않는다 (동물이 바로 위에 있다)");
+
+  // 오늘 미션 집계
+  const half = board({ condition: "fed", petToday: 2 });
+  check(half.todayDone === 1 && !half.allTodayDone, "밥만 끝나면 1 / 2");
+  const all = board({ condition: "fed", petToday: 3 });
+  check(all.todayDone === 2 && all.allTodayDone, "둘 다 끝나면 모두 완료");
+  check(!board({ condition: "peckish", petToday: 5 }).allTodayDone, "쓰다듬기만 끝나도 모두 완료는 아니다");
+
+  // 이번 주 주간 분석 — KST 월~일
+  const wk = (over) => by(board({ records: week(0), ...over }), "weekly");
+  const loading = wk({ records: null, weekStatus: "loading" });
+  check(!loading.done && loading.hint.includes("확인하고") && loading.progress === null, "기록을 아직 모르면(불러오는 중) 미완료 · 진행 없음 · \"확인하고 있어요\"");
+  const failed = wk({ records: null, weekStatus: "error" });
+  check(failed.hint.includes("불러오지 못했어요") && !failed.goesToAnalysis && !failed.done, "불러오지 못하면 그렇게 알리고 어디로도 보내지 않는다");
+  check(wk({ records: week(0) }).progress.value === 0 && wk({ records: week(3) }).progress.value === 3 && wk({ records: week(3) }).progress.target === 7, "일간 분석 개수를 센다 (0 · 3 / 7)");
+  check(!wk({ records: week(6) }).goesToAnalysis && wk({ records: week(7) }).goesToAnalysis && !wk({ records: week(7) }).done, "7개가 모이면 받을 수 있다 — 분석 탭으로 보낸다 (아직 완료는 아님)");
+  const doneWeekly = week(3, [sum("w", "weekly", kstIso(9, 16, 21))]);
+  check(wk({ records: doneWeekly }).done && !wk({ records: doneWeekly }).goesToAnalysis && wk({ records: doneWeekly }).progress === null, "이번 주 주간 분석을 받았으면 완료");
+  check(!wk({ records: week(3, [sum("old", "weekly", kstIso(9, 10, 21))]) }).done, "지난주 주간 분석은 이번 주 미션을 채우지 못한다");
+  // 경계 — 월요일 새벽(UTC로는 일요일) · 일요일 밤은 이번 주 · 지난 일요일 밤은 지난주
+  const edge = (iso) => wk({ records: { daily: [sum("e", "daily", iso)], weekly: [] } }).progress.value;
+  check(edge(kstIso(9, 14, 0, 30)) === 1, "월요일 00:30(KST · UTC로는 일요일)는 이번 주");
+  check(edge(kstIso(9, 13, 23, 30)) === 0, "지난 일요일 23:30(KST)는 지난주");
+  check(edge(kstIso(9, 20, 23, 59)) === 1 && edge(kstIso(9, 21, 0, 1)) === 0, "이번 일요일 23:59는 이번 주 · 다음 월요일 00:01은 다음 주");
+  check(wk({ records: { daily: [sum("a", "daily", kstIso(9, 15, 9)), sum("b", "daily", kstIso(9, 15, 21))], weekly: [] } }).progress.value === 1, "같은 날 둘이어도 하루는 한 번만 센다");
+  check(wk({ records: { daily: [sum("x", "weekly", kstIso(9, 15, 9))], weekly: [] } }).progress.value === 0, "주간 기록은 일간 개수에 세지 않는다");
+  // 주가 바뀌면 같은 기록이 새 주 미션을 채우지 못한다
+  check(by(M.missionBoard({ condition: "fed", petToday: 3, records: doneWeekly, weekStatus: "ready", now: at(2026, 9, 21, 10, 0) }), "weekly").done === false, "다음 주 월요일이 되면 주간 미션이 다시 비어 있다");
+
+  // 미션을 막 채운 순간 — 한 번만
+  check(M.petMissionJustDone(true, 3) && !M.petMissionJustDone(true, 4) && !M.petMissionJustDone(true, 2) && !M.petMissionJustDone(false, 3), "쓰다듬기 미션을 \"막 채운\" 탭은 인정된 3번째 하나뿐");
+
+  // 문구
+  const types = ["cat", "dog", "rabbit"];
+  check(types.every((t) => M.celebrationLine("eat", t) && M.celebrationLine("recover", t)) && new Set(types.map((t) => M.celebrationLine("recover", t))).size === 3, "밥 · 회복 한마디 — 동물 3종 모두 있고 서로 다르다");
+  check(M.missionDoneLine(true) === "오늘 미션을 모두 끝냈어요!" && M.missionDoneLine(false) === "쓰다듬기 미션 완료!", "미션 완료 말 — 밥까지 끝났으면 \"모두\"");
+  check(JSON.stringify(M.nameCard("hatch", "아기", "고양이")) === JSON.stringify({ title: "알에서 깨어났어요", name: "아기 고양이" }), "부화 이름 카드", M.nameCard("hatch", "아기", "고양이").name);
+  check(JSON.stringify(M.nameCard("stageUp", "강화 성체", "토끼")) === JSON.stringify({ title: "단계가 올랐어요", name: "강화 성체" }), "성장 이름 카드 — 조사가 붙지 않는 모양");
+}
+
+/* ── 10. 축하 연출 (6-5) ────────────────────────────────────── */
+{
+  const C = await import(pathToFileURL(join(SRC, "components", "garden", "art", "celebration.ts")).href);
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const kinds = ["eat", "recover", "hatch", "stageUp", "mission"];
+  const specs = Object.fromEntries(kinds.map((k) => [k, C.burstSpec(k, 1)]));
+
+  const counts = Object.fromEntries(kinds.map((k) => [k, specs[k].pieces.length]));
+  check(counts.recover === 30 && counts.hatch === 28 && counts.stageUp === 24 && counts.mission === 14 && counts.eat === 7, "입자 수 — 회복 30 · 부화 28 · 성장 24 · 미션 14 · 밥 반짝이 7", JSON.stringify(counts));
+  check(kinds.every((k) => eq(C.burstSpec(k, 5), C.burstSpec(k, 5))), "같은 시드는 같은 모양 (스크린샷 · 검증이 날마다 같다)");
+  check(kinds.every((k) => !eq(C.burstSpec(k, 5), C.burstSpec(k, 6))), "시드가 다르면 모양이 다르다 (같은 연출이 이어져도 똑같이 보이지 않는다)");
+  check(specs.recover.bloom.peak > 0 && specs.hatch.bloom.peak > 0 && specs.stageUp.bloom.peak > 0 && specs.mission.bloom.peak === 0 && specs.eat.bloom.peak === 0, "방이 환해지는 건 회복 · 부화 · 성장뿐");
+  check(specs.recover.bloom.peak > specs.hatch.bloom.peak && specs.hatch.bloom.peak > specs.stageUp.bloom.peak, "빛의 세기 — 회복 > 부화 > 성장");
+  check(specs.hatch.cardMs > 0 && specs.stageUp.cardMs > 0 && specs.recover.cardMs === 0 && specs.mission.cardMs === 0 && specs.eat.cardMs === 0, "이름 카드는 부화 · 성장에만");
+
+  let sane = true;
+  let lateEnd = 0;
+  for (const k of kinds)
+    for (const p of specs[k].pieces) {
+      if (!(p.size > 0 && p.duration > 0 && p.delay >= 0 && /^#[0-9A-F]{6}$/i.test(p.color) && ["bar", "dot", "spark"].includes(p.shape))) sane = false;
+      lateEnd = Math.max(lateEnd, p.delay + p.duration);
+      if (p.delay + p.duration > specs[k].totalMs) sane = false;
+    }
+  check(sane, "모든 입자 — 크기 · 길이 · 색(#RRGGBB) · 모양이 올바르고 끝나는 시각이 연출 길이 안에 있다", `가장 늦게 끝나는 입자 ${lateEnd}ms`);
+  check(kinds.every((k) => specs[k].totalMs <= 4000), "연출은 4초를 넘지 않는다 (가장 긴 것은 먹는 동작 3.6초 + 끝의 반짝이)", String(Math.max(...kinds.map((k) => specs[k].totalMs))));
+  check(specs.eat.pieces.every((p) => p.delay >= 1500), "밥 반짝이는 먹는 동작이 끝나갈 즈음(1.5초 뒤)에 시작한다");
+
+  // 입자 운동 — 던져 올린 물체
+  const pose = C.piecePose;
+  const fan = specs.recover.pieces;
+  check(fan.every((p) => pose(p, 0).opacity === 0 && pose(p, 1).opacity === 0), "처음(시작 전)과 끝에는 보이지 않는다");
+  check(fan.every((p) => pose(p, 0.5).opacity === 1), "한가운데에서는 또렷하다");
+  const apex = (p) => Math.min(...Array.from({ length: 101 }, (_, i) => pose(p, i / 100).y));
+  const bottom = (p) => pose(p, 1).y;
+  check(fan.every((p) => p.vy < 0), "폭죽은 모두 위쪽으로 쏘아 올린다");
+  check(fan.filter((p) => apex(p) < p.y0 - 10).length >= fan.length * 0.75, "대부분(75% 이상)은 시작점보다 10 이상 솟는다 (가로로 퍼지는 몇 개를 빼고)");
+  check(fan.filter((p) => bottom(p) > apex(p) + 20).length >= fan.length * 0.9, "솟은 뒤 중력으로 떨어진다");
+  const inRoom = fan.filter((p) => {
+    const q = pose(p, 0.5);
+    return q.x >= 0 && q.x <= 360 && q.y >= 0 && q.y <= 418;
+  }).length;
+  check(inRoom >= fan.length * 0.7, "한가운데 순간에 입자 70% 이상이 방(360 × 418) 안에 있다", `${inRoom} / ${fan.length}`);
+  const sp = specs.eat.pieces[0];
+  check(pose(sp, 0.25).scale !== pose(sp, 0.5).scale && pose(sp, 0.5).scale <= 1, "반짝이는 숨 쉬듯 커졌다 작아진다");
+  const seq = (seed) => {
+    const r = C.rng(seed);
+    return Array.from({ length: 50 }, () => r());
+  };
+  check(eq(seq(3), seq(3)) && !eq(seq(3), seq(4)) && seq(9).every((v) => v >= 0 && v < 1), "난수 — 같은 시드 같은 수열 · 0 이상 1 미만");
 }
 
 if (failures.length) {

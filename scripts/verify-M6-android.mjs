@@ -20,6 +20,8 @@
  *   3b. **쓰다듬기(6-4) — 이 계정의 오늘 친밀도 기록이 실제로 바뀐다(하루 5번 상한 안, 최대 +3).**
  *      탭 · 문지르기 때 실제 진동이 나는가(`dumpsys vibrator_manager`) · 위아래로 끌면 스크롤인가 · 카드 숫자가 올랐는가 ·
  *      앱을 껐다 켜도(= 서버에서 새로 읽어도) 같은 숫자인가 — 실서버 `POST /api/garden/pet` + Firestore 확인
+ *   3c. **오늘의 미션(6-5)** — 미션 카드가 실계정 값(동물 상태 · 오늘 쓰다듬기 · 이번 주 분석 목록)으로 맞게 그려지는가
+ *   3d. **축하 연출(6-5)** — 로그인 없이 열리는 미리보기(`offlo://preview/garden?...&then=fed`)로 네이티브 렌더러(Reanimated · RN 뷰)에서 부화 이름 카드 · 방이 환해지는 빛이 실제로 그려지는가
  *   4. 앱 생존 · JS 에러 · 네이티브 크래시 0
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -190,6 +192,34 @@ function diffCount(a, b) {
   return n;
 }
 
+/** 정원 탭의 미션 카드를 읽는다 — 줄마다 접근성 라벨(content-desc)이 "제목 진행, 완료|진행 중. 안내"다 */
+async function readMissions() {
+  await openGarden(true);
+  await wait(2000);
+  adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
+  await wait(900);
+  const xml = dumpUi();
+  adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
+  await wait(500);
+  const label = (id) => xml.match(new RegExp(`resource-id="${id}"[^>]*content-desc="([^"]*)"`))?.[1] ?? null;
+  const header = xml.includes('text="모두 완료"') ? "모두 완료" : (xml.match(/text="(\d) \/ 2"/)?.[1] ?? null);
+  return { feed: label("mission-feed"), pet: label("mission-pet"), weekly: label("mission-weekly"), header };
+}
+/** 영역 안에서 색이 (r, g, b) 근처인 픽셀 수 */
+function colorPixels(rgb, [tr, tg, tb], tol = 28) {
+  let n = 0;
+  for (let i = 0; i < rgb.length; i += 3) {
+    if (Math.abs(rgb[i] - tr) < tol && Math.abs(rgb[i + 1] - tg) < tol && Math.abs(rgb[i + 2] - tb) < tol) n++;
+  }
+  return n;
+}
+/** 영역의 평균 밝기 (0~255) */
+function meanLuma(rgb) {
+  let sum = 0;
+  for (let i = 0; i < rgb.length; i += 3) sum += 0.2126 * rgb[i] + 0.7152 * rgb[i + 1] + 0.0722 * rgb[i + 2];
+  return sum / (rgb.length / 3);
+}
+
 /* ── 0. 공유 코드 드리프트 ─────────────────────────────────── */
 if (spawnSync(process.execPath, [join(ROOT, "scripts", "sync-shared.mjs")], { stdio: "inherit" }).status !== 0) {
   console.error("\n공유 코드가 웹과 갈라져 있습니다. 먼저 맞추고 다시 실행하세요.");
@@ -289,6 +319,8 @@ try {
   }
 
   /* ── 3. [애니메이션] 움직임 ──────────────────────────────── */
+  /** 쓰다듬기를 마친 뒤 서버에서 새로 읽은 오늘 횟수 — 3c가 미션 카드와 맞춰 본다 */
+  let todayAfter = null;
   if (stage) {
     // 쓰다듬기 전의 친밀도 — 실계정의 오늘 기록 (아래 3b가 여기에 +3을 기대한다)
     const affection0 = await readAffection();
@@ -375,7 +407,74 @@ try {
         "껐다 켜도 같은 숫자 — 서버(Firestore)에 기록됐다",
         now2 ? `${now2.today} / ${cap} · ${now2.level}` : "읽지 못함",
       );
+      todayAfter = now2?.today ?? now1?.today ?? null;
     }
+
+    /* ── 3c. 오늘의 미션 카드 — 실계정 값으로 맞게 그려지는가 ──────────── */
+    {
+      // 주간 분석 줄은 분석 목록 API를 따로 부른다 — 늦게 오면 "확인하고 있어요"가 잠깐 보이므로 몇 번 다시 읽는다
+      let m = await readMissions();
+      for (let i = 0; i < 3 && m.weekly && /확인하고 있어요/.test(m.weekly); i++) {
+        await wait(2500);
+        m = await readMissions();
+      }
+      check(Boolean(m.feed && m.pet && m.weekly), "미션 카드 — 밥 · 쓰다듬기 · 주간 분석 세 줄이 실데이터로 뜬다", m.feed ? "" : "카드가 안 보임");
+      if (m.feed && m.pet && m.weekly) {
+        const fedNow = state === "fed";
+        check(/, 완료\./.test(m.feed) === fedNow, `밥 줄 — 동물 상태(${state})와 같다`, m.feed);
+        const petToday = todayAfter ?? 0;
+        const petDone = petToday >= 3;
+        check(m.pet.includes(`쓰다듬기 3번 ${Math.min(3, petToday)} / 3, ${petDone ? "완료" : "진행 중"}`), `쓰다듬기 줄 — 오늘 ${petToday}번이니 ${Math.min(3, petToday)} / 3 ${petDone ? "완료" : "진행 중"}`, m.pet);
+        const expectHeader = fedNow && petDone ? "모두 완료" : String((fedNow ? 1 : 0) + (petDone ? 1 : 0));
+        check(m.header === expectHeader, `카드 머리글 — ${expectHeader === "모두 완료" ? "모두 완료" : `${expectHeader} / 2`}`, String(m.header));
+        check(/\d \/ 7, 진행 중|, 완료\./.test(m.weekly) && !/불러오지 못했어요/.test(m.weekly), "주간 분석 줄 — 이번 주 분석 기록(실서버)을 읽어 진행 또는 완료로 그려진다", m.weekly);
+      }
+      await openGarden(true);
+      await wait(2000);
+      adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
+      await wait(900);
+      shot("M6-android-missions.png");
+      adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
+      await wait(500);
+    }
+  }
+
+  /* ── 3d. 축하 연출 — 로그인 없이 열리는 미리보기로 네이티브 렌더러를 본다 ───────── */
+  // 알 → 첫 밥(부화): 4.5초 뒤 "알에서 깨어났어요 · 아기 고양이" 카드(브랜드 그린 글자)가 뜨고 방이 따뜻하게 환해진다.
+  // 계속 움직이는 화면이라 uiautomator를 못 쓴다 — 스크린샷 프레임을 연달아 찍어 픽셀로 본다.
+  {
+    adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://preview/garden?state=egg%26then=fed", "-p", PACKAGE]);
+    const frames = [];
+    const t0 = Date.now();
+    while (Date.now() - t0 < 14_000) {
+      frames.push({ t: Date.now() - t0, png: screencap() });
+      await wait(150);
+    }
+    // 방 장면 위치는 정원 탭과 같다 (같은 GardenView). 정지 정원에서 읽은 stage 좌표가 없으면 화면 폭으로 구한다
+    const probe = PNG.sync.read(frames[frames.length - 1].png);
+    const sx1 = stage ? stage[0] : 48;
+    const sx2 = stage ? stage[2] : probe.width - 48;
+    const sy1 = stage ? stage[1] : 400;
+    const sw = sx2 - sx1;
+    const sh = Math.round(sw * (418 / 360));
+    const cardBox = [sx1 + Math.round(sw * 0.22), sy1 + Math.round(sh * 0.03), sx1 + Math.round(sw * 0.78), sy1 + Math.round(sh * 0.2)];
+    const stageBox = [sx1, sy1, sx2, sy1 + sh];
+    const stats = frames.map((f) => ({
+      t: f.t,
+      card: colorPixels(region(f.png, cardBox), [61, 219, 135]),
+      luma: meanLuma(region(f.png, stageBox)),
+    }));
+    const base = stats.slice(0, 4).reduce((a, x) => a + x.luma, 0) / 4;
+    const cardPeak = stats.reduce((a, x) => (x.card > a.card ? x : a), stats[0]);
+    const lumaPeak = Math.max(...stats.map((x) => x.luma));
+    const cardEnd = stats[stats.length - 1].card;
+    console.log(`  · 프레임 ${frames.length}장 · 기준 밝기 ${base.toFixed(1)} · 최대 ${lumaPeak.toFixed(1)} · 카드 글자 픽셀 최대 ${cardPeak.card} (${cardPeak.t}ms)`);
+    check(stats[0].card < 40 && cardPeak.card >= 250, "부화 이름 카드 — 처음엔 없다가 알이 깨어나면 브랜드 그린 글자 카드가 뜬다 (네이티브)", `처음 ${stats[0].card} → 최대 ${cardPeak.card}`);
+    check(cardEnd < 40, "부화 이름 카드 — 3초 안팎에 사라진다", `끝 ${cardEnd}`);
+    check(lumaPeak > base * 1.12, "부화 빛 번짐 — 방이 따뜻하게 환해졌다 (평균 밝기 +12% 이상)", `${base.toFixed(1)} → ${lumaPeak.toFixed(1)}`);
+    shot("M6-android-celebrate-hatch.png", frames[stats.indexOf(cardPeak)].png);
+    // 폭죽이 가장 많이 퍼진 순간도 한 장 남긴다 — 사람이 눈으로 본다
+    shot("M6-android-celebrate-hatch-late.png", frames[Math.min(frames.length - 1, stats.indexOf(cardPeak) + 4)].png);
   }
 
   /* ── 4. 생존 · 에러 ──────────────────────────────────────── */

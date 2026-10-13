@@ -724,6 +724,193 @@ try {
         check((await hapticLog(quiet.page)).length === 0, "정지 모드 — 밥을 먹어도 햅틱 요청 없음", (await hapticLog(quiet.page)).join(","));
         await quiet.page.close();
       }
+
+      /* ── 오늘의 미션 · 축하 연출 (6-5) ─────────────────────────────────────────── */
+      const M = await import(pathToFileURL(join(ROOT, "src", "logic", "mission.ts")).href);
+      /** 지금 떠 있는 연출 층들 — 입자 수 · 빛(bloom) · 이름 카드 */
+      const layers = (page) =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[data-testid="celebration"]')].map((root) => ({
+            pieces: [...root.children].filter((c) => c.getAttribute("data-testid") !== "celebration-bloom" && !c.querySelector('[data-testid="celebration-card"]')).length,
+            bloom: !!root.querySelector('[data-testid="celebration-bloom"]'),
+            card: root.querySelector('[data-testid="celebration-card"]')?.innerText.replace(/\s+/g, " ").trim() ?? null,
+          })),
+        );
+      const label = (page, id) => page.getByTestId(id).first().getAttribute("aria-label");
+      /** 연출이 뜰 때까지 기다린다 (true) — 안 뜨면 false */
+      const appears = (page, ms = 4000) =>
+        page.waitForFunction(() => document.querySelector('[data-testid="celebration"]'), null, { timeout: ms }).then(() => true, () => false);
+      const gone = (page, ms = 6000) =>
+        page.waitForFunction(() => !document.querySelector('[data-testid="celebration"]'), null, { timeout: ms }).then(() => true, () => false);
+
+      // H. 오늘의 미션 카드 — 밥 · 쓰다듬기 · 이번 주 주간 분석 (샘플 기준일 목 · 이번 주 일간 4개)
+      {
+        const { page, errors } = await openGarden("state=fed&today=2&week=4");
+        const box = async (id) => (await page.getByTestId(id).first().boundingBox())?.y ?? -1;
+        check(await page.getByTestId("garden-missions").isVisible(), "미션 카드가 보인다");
+        check((await text(page, "garden-missions")).includes("오늘의 미션") && (await text(page, "garden-missions")).includes("1 / 2"), "미션 카드 — 오늘 1 / 2 (밥 완료 · 쓰다듬기 2번)", (await text(page, "garden-missions")).replace(/\s+/g, " ").slice(0, 60));
+        check((await label(page, "mission-feed"))?.startsWith("밥 주기, 완료."), "밥 주기 — 오늘 분석했으니 완료", await label(page, "mission-feed"));
+        check((await label(page, "mission-pet"))?.includes("쓰다듬기 3번 2 / 3, 진행 중"), "쓰다듬기 — 2 / 3 진행 중", await label(page, "mission-pet"));
+        check((await label(page, "mission-weekly"))?.includes("이번 주 주간 분석 받기 4 / 7, 진행 중"), "주간 분석 — 이번 주 일간 4 / 7 진행 중", await label(page, "mission-weekly"));
+        check((await page.getByTestId("mission-pet-progress").innerText()).replace(/\s+/g, "") === "2/3", "쓰다듬기 진행 숫자 2/3");
+        const [yCond, yMission, yAff] = [await box("pet-condition"), await box("garden-missions"), await box("pet-affection")];
+        check(yCond < yMission && yMission < yAff, "순서 — 상태 카드 · 미션 · 친밀도", `${Math.round(yCond)} < ${Math.round(yMission)} < ${Math.round(yAff)}`);
+        check((await layers(page)).length === 0, "미션을 채우기 전에는 연출이 없다");
+
+        // 3번째 쓰다듬기 — 미션 완료 (밥도 끝났으니 오늘 미션 모두 완료)
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(250);
+        check((await text(page, "garden-missions")).includes("모두 완료"), "쓰다듬기 3번 → 카드가 \"모두 완료\"");
+        check((await page.getByTestId("mission-pet-progress").innerText()).replace(/\s+/g, "") === "3/3", "쓰다듬기 진행 3/3");
+        check((await label(page, "mission-pet"))?.includes("완료"), "쓰다듬기 — 완료로 바뀐다", await label(page, "mission-pet"));
+        check((await bubbleText(page)) === M.missionDoneLine(true), "미션 완료 — 동물이 \"모두 끝냈어요\"라고 말한다", await bubbleText(page));
+        check((await hapticLog(page)).at(-1) === "success", "미션 완료 — success 햅틱", (await hapticLog(page)).join(","));
+        check(await appears(page, 1500), "미션 완료 — 축하 연출이 뜬다");
+        const ls = await layers(page);
+        check(ls.length === 1 && ls[0].pieces === 14 && !ls[0].bloom && ls[0].card === null, "미션 연출 — 폭죽 14개 · 빛 없음 · 카드 없음", JSON.stringify(ls));
+        await page.screenshot({ path: join(OUT_DIR, "M6-mission-done.png") });
+        check(await gone(page, 4000), "연출은 2초 안팎에 끝나 정원을 가리지 않는다");
+
+        // 한 번만 — 4번째 탭은 연출을 다시 부르지 않는다
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(500);
+        check((await layers(page)).length === 0 && (await today(page)) === "4/5번", "미션을 채운 뒤의 탭 — 연출은 다시 뜨지 않고 친밀도만 쌓인다", await today(page));
+        check(errors.length === 0, "미션 카드 · 콘솔 에러 0", errors.join(" | ").slice(0, 240));
+        await page.close();
+      }
+
+      // I. 밥이 아직이면 — 미션 완료 말이 달라지고, 밥 줄은 분석 탭으로 보낸다
+      {
+        const { page } = await openGarden("state=peckish&today=2&week=2");
+        check((await text(page, "mission-feed")).includes("분석하기") && (await label(page, "mission-feed"))?.includes("진행 중"), "밥이 아직이면 — 진행 중 · \"분석하기\"");
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(250);
+        check((await text(page, "garden-missions")).includes("1 / 2") && !(await text(page, "garden-missions")).includes("모두 완료"), "쓰다듬기만 끝내면 1 / 2 (모두 완료가 아니다)");
+        check((await bubbleText(page)) === M.missionDoneLine(false), "쓰다듬기 미션 완료 말 — \"쓰다듬기 미션 완료!\"", await bubbleText(page));
+        await page.close();
+
+        // 상한 뒤의 탭은 미션을 채우지 못한다 — 세지도 않으니 연출도 없다
+        const capped = await openGarden("state=fed&today=5");
+        await capped.page.getByTestId("pet-touch").click();
+        await capped.page.waitForTimeout(500);
+        check((await layers(capped.page)).length === 0, "오늘 상한 뒤의 탭 — 미션 연출이 뜨지 않는다");
+        await capped.page.close();
+
+        // 알 · 동물 미선택
+        const egg = await openGarden("state=egg&today=0&week=0");
+        check((await label(egg.page, "mission-feed"))?.startsWith("알 부화시키기"), "알이면 밥 줄 제목이 \"알 부화시키기\"", await label(egg.page, "mission-feed"));
+        await egg.page.close();
+        const none = await open("/preview/garden?state=none", "garden");
+        check((await none.page.getByTestId("garden-missions").count()) === 0, "동물을 고르기 전에는 미션 카드가 없다");
+        await none.page.close();
+      }
+
+      // J. 이번 주 주간 분석 줄 — 다섯 가지 모습
+      {
+        const weekRow = async (week) => {
+          const { page } = await open(`/preview/garden?state=fed&still=1&week=${week}`, "garden");
+          await page.getByTestId("mission-weekly").waitFor({ state: "visible" });
+          const out = { label: await label(page, "mission-weekly"), text: await text(page, "mission-weekly") };
+          const stageOk = await page.getByTestId("pet-stage").isVisible();
+          await page.close();
+          return { ...out, stageOk };
+        };
+        const w3 = await weekRow("3");
+        check(w3.label.includes("3 / 7, 진행 중") && w3.text.includes("7개 모이면"), "주간 분석 — 일간 3 / 7이면 \"7개 모이면 받을 수 있어요\"", w3.text.replace(/\s+/g, " "));
+        const w7 = await weekRow("7");
+        check(w7.text.includes("주간 분석을 받아 보세요") && w7.label.includes("7 / 7, 진행 중"), "주간 분석 — 7개가 모이면 받아 보라고 알린다", w7.text.replace(/\s+/g, " "));
+        const wd = await weekRow("done");
+        check(wd.label.includes("완료") && wd.text.includes("받았어요"), "주간 분석 — 이번 주에 받았으면 완료", wd.text.replace(/\s+/g, " "));
+        const we = await weekRow("error");
+        check(we.text.includes("불러오지 못했어요") && we.stageOk, "주간 분석 — 기록을 못 불러와도 정원은 그대로 열린다", we.text.replace(/\s+/g, " "));
+        const wl = await weekRow("loading");
+        check(wl.text.includes("확인하고 있어요"), "주간 분석 — 불러오는 중이면 \"확인하고 있어요\"", wl.text.replace(/\s+/g, " "));
+      }
+
+      // K. 축하 연출 — 굶주림 회복 · 부화 · 성장 · 밥 반짝이 (장면이 시작을 알릴 때 방 위에 얹힌다)
+      {
+        const run = async (query, label2, check2) => {
+          const { page, errors } = await openGarden(query);
+          check((await layers(page)).length === 0, `${label2} — 전환 전에는 연출이 없다`);
+          await page.getByTestId("pet-condition-chip").filter({ hasText: "배부름" }).waitFor({ timeout: 15_000 });
+          const shown = await appears(page, 3000);
+          await check2(page, shown);
+          check(errors.length === 0, `${label2} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
+          await page.close();
+        };
+
+        await run("state=starving&then=fed", "굶주림 → 회복", async (page, shown) => {
+          check(shown, "회복 — 연출이 뜬다");
+          const ls = await layers(page);
+          check(ls.length === 1 && ls[0].pieces === 30 && ls[0].bloom && ls[0].card === null, "회복 — 폭죽 30개 + 방이 환해지는 빛 · 카드 없음", JSON.stringify(ls));
+          check((await bubbleText(page)) === M.celebrationLine("recover", "rabbit"), "회복 — 동물이 기운을 되찾았다고 말한다", await bubbleText(page));
+          await page.waitForTimeout(250);
+          const lit = await page.getByTestId("celebration-bloom").evaluate((el) => Number(getComputedStyle(el).opacity));
+          check(lit > 0.05, "회복 — 방이 실제로 환해져 있다 (빛 불투명도 > 0.05)", lit.toFixed(2));
+          await page.screenshot({ path: join(OUT_DIR, "M6-celebrate-recover.png") });
+          check(await gone(page, 6000), "회복 — 연출이 끝나면 층이 걷힌다");
+        });
+
+        await run("state=egg&then=fed", "알 → 부화", async (page, shown) => {
+          check(shown, "부화 — 연출이 뜬다");
+          const ls = await layers(page);
+          const hatch = ls.find((l) => l.card);
+          check(hatch && hatch.card.includes("알에서 깨어났어요") && hatch.card.includes("아기 고양이") && hatch.pieces === 28 && hatch.bloom, "부화 — 이름 카드 \"알에서 깨어났어요 · 아기 고양이\" + 빛 + 입자 28개", JSON.stringify(ls));
+          await page.screenshot({ path: join(OUT_DIR, "M6-celebrate-hatch.png") });
+          await page.waitForTimeout(3200);
+          check((await page.getByTestId("celebration-card").count()) === 0, "부화 — 카드는 3초 안팎에 사라진다");
+        });
+
+        await run("state=peckish&streak=6&then=fed", "6일 → 7일 성장", async (page, shown) => {
+          check(shown, "성장 — 연출이 뜬다");
+          const ls = await layers(page);
+          const up = ls.find((l) => l.card);
+          check(up && up.card.includes("단계가 올랐어요") && up.card.includes("성장 중") && up.pieces === 24 && up.bloom, "성장 — 이름 카드 \"단계가 올랐어요 · 성장 중\" + 빛 + 입자 24개", JSON.stringify(ls));
+          await page.screenshot({ path: join(OUT_DIR, "M6-celebrate-stageup.png") });
+          // 밥 먹기 반짝이가 이어서 뜬다 — 두 연출이 동시에 돌 수 있다
+          const sparkles = await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="celebration"]')].some((r) => !r.querySelector('[data-testid="celebration-card"]') && !r.querySelector('[data-testid="celebration-bloom"]') && r.children.length === 7), null, { timeout: 3000 }).then(() => true, () => false);
+          check(sparkles, "성장 — 성장 연출과 별개로 밥 반짝이(7개)도 이어진다");
+        });
+
+        await run("state=peckish&then=fed", "출출 → 밥 먹기", async (page, shown) => {
+          check(shown, "밥 먹기 — 연출 층이 뜬다");
+          const ls = await layers(page);
+          check(ls.length === 1 && ls[0].pieces === 7 && !ls[0].bloom && ls[0].card === null, "밥 먹기 — 반짝이 7개만 (빛 · 카드 없음)", JSON.stringify(ls));
+          check((await bubbleText(page)) === M.celebrationLine("eat", "dog"), "밥 먹기 — 동물이 \"냠냠\"이라고 말한다", await bubbleText(page));
+          await page.waitForTimeout(1900);
+          await page.screenshot({ path: join(OUT_DIR, "M6-celebrate-eat.png") });
+        });
+
+        // 정지 화면에서는 장면이 시작하지 않으니 연출도 없다
+        const quiet = await openGarden("state=starving&then=fed&still=1");
+        await quiet.page.getByTestId("pet-condition-chip").filter({ hasText: "배부름" }).waitFor({ timeout: 15_000 });
+        await quiet.page.waitForTimeout(1500);
+        check((await layers(quiet.page)).length === 0, "정지 모드 — 회복해도 연출이 없다");
+        await quiet.page.close();
+      }
+
+      // L. 동작 줄이기 — 미션은 말 · 진동 · 카드로만 알리고 빛 · 입자는 빠진다
+      {
+        const reduced = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          deviceScaleFactor: 2,
+          colorScheme: "dark",
+          reducedMotion: "reduce",
+          timezoneId: "Asia/Seoul",
+          locale: "ko-KR",
+        });
+        const page = await reduced.newPage();
+        await page.goto(`${URL}/preview/garden?state=fed&today=2`, { waitUntil: "networkidle", timeout: 120_000 });
+        await page.getByTestId("pet-stage").waitFor({ state: "visible", timeout: 60_000 });
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(600);
+        await page.getByTestId("pet-touch").click();
+        await page.waitForTimeout(300);
+        check((await text(page, "garden-missions")).includes("모두 완료") && (await bubbleText(page)) === M.missionDoneLine(true), "동작 줄이기 — 미션은 카드 · 말로 알린다");
+        const ls = await layers(page);
+        check(ls.every((l) => l.pieces === 0 && !l.bloom), "동작 줄이기 — 폭죽 · 빛은 빠진다", JSON.stringify(ls));
+        await reduced.close();
+      }
     }
   }
 
