@@ -29,6 +29,9 @@ export const firebaseConfig = {
 
 export const API_BASE_URL = required("EXPO_PUBLIC_API_BASE_URL", process.env.EXPO_PUBLIC_API_BASE_URL);
 
+/** 개인정보 처리방침 — 웹 `/privacy` (스토어 등록 · 로그인 화면 · 설정에서 연다) */
+export const PRIVACY_URL = `${API_BASE_URL.replace(/\/+$/, "")}/privacy`;
+
 /**
  * Google 웹 클라이언트 ID — 네이티브 로그인이 idToken을 받으려면 필요하다.
  * 비어 있어도 앱은 뜬다. 로그인 버튼을 누르는 순간에만 안내한다.

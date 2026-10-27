@@ -57,9 +57,12 @@ function RootStack() {
         <Stack.Protected guard={!user}>
           <Stack.Screen name="login" />
         </Stack.Protected>
-        {/* 가드 밖 — 사용자 데이터가 없는 화면만 (security.md): M1 점검 · 층 ① 미리보기 */}
-        <Stack.Screen name="foundation" />
-        <Stack.Screen name="preview" />
+        {/* 가드 밖 — 사용자 데이터가 없는 화면만 (security.md): M1 점검 · 층 ① 미리보기.
+            **개발 모드에서만 열린다** — 릴리스 빌드(`__DEV__` false)에서는 `offlo://preview/…` 링크로도 열리지 않는다 (샘플 화면이 사용자에게 보이면 안 된다 · M9) */}
+        <Stack.Protected guard={__DEV__}>
+          <Stack.Screen name="foundation" />
+          <Stack.Screen name="preview" />
+        </Stack.Protected>
       </Stack>
     </>
   );

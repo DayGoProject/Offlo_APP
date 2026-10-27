@@ -1,15 +1,14 @@
 /**
- * 로그인 — Google 단독 (M2). Apple 로그인은 M8에서 이 화면에 붙는다.
- *
- * 이메일 로그인·회원가입은 만들지 않는다 (소셜 전용 · security.md).
- * 미가입 계정은 막는다 — 가입은 Offlo 웹에서 한다.
+ * 로그인 — Google 단독. **로그인이 곧 가입이다** — 처음 로그인하는 Google 계정은 그 자리에서 계정이 만들어진다 (M9 결정 · `auth-context.tsx`).
+ * 이메일 로그인·회원가입은 만들지 않는다 (소셜 전용 · security.md). 개인정보 처리방침 링크를 둔다 (스토어 요구).
  */
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/auth-context";
 import GoogleIcon from "@/components/GoogleIcon";
+import { PRIVACY_URL } from "@/config";
 import { ApiError } from "@/services/api";
 import { AuthFlowError, getAuthErrorMessage } from "@/services/auth-errors";
 import { colors, em, fonts, radius, VOID, WHITE } from "@/theme";
@@ -27,7 +26,7 @@ export default function LoginScreen() {
       // 성공하면 라우트 가드가 홈으로 넘긴다 — 여기서 이동하지 않는다
       await signInWithGoogle();
     } catch (e) {
-      // 예상한 안내(미가입·설정 누락·서버 메시지)는 로그로 남기지 않는다
+      // 예상한 안내(설정 누락·서버 메시지)는 로그로 남기지 않는다
       if (!(e instanceof AuthFlowError) && !(e instanceof ApiError)) {
         console.warn("[Google 로그인 실패]", e);
       }
@@ -44,7 +43,7 @@ export default function LoginScreen() {
         <Text accessibilityRole="header" style={styles.title}>
           로그인
         </Text>
-        <Text style={styles.subtitle}>계속하려면 로그인해주세요</Text>
+        <Text style={styles.subtitle}>Google 계정으로 바로 시작해요. 처음이면 계정이 만들어져요.</Text>
 
         <Pressable
           testID="google-login-button"
@@ -65,7 +64,18 @@ export default function LoginScreen() {
         ) : null}
       </View>
 
-      <Text style={styles.footnote}>처음이신가요? Offlo 웹에서 Google로 가입한 뒤 로그인해주세요.</Text>
+      <Text style={styles.footnote}>
+        계속하면{" "}
+        <Text
+          testID="privacy-link"
+          accessibilityRole="link"
+          onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})}
+          style={styles.footLink}
+        >
+          개인정보 처리방침
+        </Text>
+        을 읽고 동의한 것으로 봐요.
+      </Text>
     </View>
   );
 }
@@ -136,5 +146,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.textFaint,
+  },
+  footLink: {
+    color: colors.textSecondary,
+    textDecorationLine: "underline",
   },
 });

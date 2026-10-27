@@ -32,13 +32,15 @@ export interface SettingsViewProps {
   /** 이름 저장 — 실패하면 화면에 띄울 문구, 성공하면 null (부모가 서버 이름을 다시 읽는다) */
   onSaveName: (name: string) => Promise<string | null>;
   onSignOut: () => Promise<void>;
+  /** 개인정보 처리방침을 연다 (웹 `/privacy`) — 안 주면 줄을 그리지 않는다 */
+  onOpenPrivacy?: () => void;
   /** 회원 탈퇴 — 실패하면 문구, 성공하면 null (이어서 로그아웃돼 로그인 화면으로 간다) */
   onDeleteAccount: () => Promise<string | null>;
   /** 리마인더(로컬 예약 알림) 설정 — 안 주면 카드를 그리지 않는다 */
   reminders?: RemindersCardProps;
 }
 
-export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount, reminders }: SettingsViewProps) {
+export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount, reminders, onOpenPrivacy }: SettingsViewProps) {
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
@@ -100,6 +102,17 @@ export default function SettingsView({ profile, providerIds, loading, error, onR
           </Card>
 
           <Card testID="settings-session" style={styles.menuCard}>
+            {onOpenPrivacy ? (
+              <Pressable
+                testID="settings-privacy"
+                accessibilityRole="link"
+                onPress={onOpenPrivacy}
+                style={({ pressed }) => [styles.menuRow, styles.menuSplit, styles.menuDivider, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>개인정보 처리방침</Text>
+                <Text style={styles.menuChevron}>›</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               testID="settings-signout"
               accessibilityRole="button"
@@ -327,6 +340,20 @@ const styles = StyleSheet.create({
   menuLabel: {
     fontFamily: fonts.regular,
     fontSize: 15,
+  },
+  menuSplit: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  menuDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderCard,
+  },
+  menuChevron: {
+    fontFamily: fonts.regular,
+    fontSize: 20,
+    color: colors.textMuted,
   },
   danger: {
     gap: 16,

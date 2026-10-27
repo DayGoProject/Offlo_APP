@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.daygoproject.offlo",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#040508",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

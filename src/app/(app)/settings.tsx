@@ -7,6 +7,7 @@
  * (두 번 가면 안 되는 요청이라 재시도하지 않는다 — 실패하면 문구를 띄우고 사용자가 다시 누른다).
  */
 import { updateProfile } from "firebase/auth";
+import { Linking } from "react-native";
 
 import { useAuth } from "@/auth-context";
 import SettingsView from "@/components/settings/SettingsView";
@@ -15,6 +16,7 @@ import { useReminders } from "@/hooks/reminders-context";
 import { nameSaveHint } from "@/logic/settings";
 import { api } from "@/services/api";
 import { ApiError, getErrorMessage } from "@/services/api-client";
+import { PRIVACY_URL } from "@/config";
 import { auth } from "@/services/firebase";
 
 export default function SettingsScreen() {
@@ -54,6 +56,7 @@ export default function SettingsScreen() {
       onSaveName={saveName}
       onSignOut={signOut}
       onDeleteAccount={deleteAccount}
+      onOpenPrivacy={() => void Linking.openURL(PRIVACY_URL).catch(() => {})}
       reminders={{
         supported: reminders.supported,
         ready: reminders.ready,

@@ -94,6 +94,12 @@
     "verify:M8-web": "node scripts/verify-M8-web.mjs",
     "verify:M8-android": "node scripts/verify-M8-android.mjs",
     "verify:M8-reminders-android": "node scripts/verify-M8-reminders-android.mjs",
+    "verify:M9-ai-limit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-ai-limit.mjs",
+    "verify:M9-account-delete": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-account-delete.mjs",
+    "verify:M9-signup-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-signup-api.mjs",
+    "verify:M9-release-android": "node scripts/verify-M9-release-android.mjs",
+    "store:screenshots": "node scripts/store-screenshots.mjs",
+    "eas:env": "node scripts/eas-env-push.mjs",
     "android:build": "expo run:android --no-bundler"
   },
   "private": true

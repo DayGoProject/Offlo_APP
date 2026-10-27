@@ -6,7 +6,6 @@ import { ApiError } from "@/services/api-client";
 
 /** Firebase·Google 코드가 아닌, 앱 로그인 절차가 직접 던지는 사유 */
 export type AuthFlowCode =
-  | "no-account"
   | "expo-go"
   | "config-missing"
   | "missing-id-token"
@@ -32,8 +31,6 @@ export function getAuthErrorMessage(err: unknown): string {
 
   const code = err instanceof AuthFlowError ? err.code : getErrorCode(err);
   switch (code) {
-    case "no-account":
-      return "가입된 계정이 없습니다. Offlo 웹에서 먼저 회원가입을 진행해주세요.";
     case "expo-go":
       return "Expo Go에서는 Google 로그인을 쓸 수 없습니다. 개발 빌드에서 확인해주세요.";
     case "config-missing":
