@@ -13,21 +13,25 @@ export default function PageHeader({
   eyebrow,
   title,
   actions,
+  corner,
 }: {
   eyebrow?: string;
   title: string;
   /** 제목 아래 한 줄에 놓인다 (모바일은 옆에 둘 폭이 없다) */
   actions?: ReactNode;
+  /** 오른쪽 위 모서리에 놓인다 — 알림 종처럼 작은 아이콘 하나 (제목이 그 밑으로 들어가지 않게 오른쪽을 비운다) */
+  corner?: ReactNode;
 }) {
   return (
     <View style={styles.header}>
+      {corner ? <View style={styles.corner}>{corner}</View> : null}
       {eyebrow ? (
         <View style={styles.eyebrow}>
           <View style={styles.dot} />
           <Text style={styles.eyebrowText}>{eyebrow}</Text>
         </View>
       ) : null}
-      <Text accessibilityRole="header" style={styles.title}>
+      <Text accessibilityRole="header" style={[styles.title, corner ? styles.titleWithCorner : null]}>
         {title}
       </Text>
       {actions ? <View style={styles.actions}>{actions}</View> : null}
@@ -38,6 +42,15 @@ export default function PageHeader({
 const styles = StyleSheet.create({
   header: {
     gap: 7,
+  },
+  corner: {
+    position: "absolute",
+    right: 0,
+    top: -10,
+    zIndex: 1,
+  },
+  titleWithCorner: {
+    paddingRight: 52,
   },
   eyebrow: {
     flexDirection: "row",

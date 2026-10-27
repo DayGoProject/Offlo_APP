@@ -4,18 +4,23 @@
  */
 import { Stack } from "expo-router";
 
+import { NotificationsProvider } from "@/hooks/notifications-context";
 import { colors } from "@/theme";
 
 export default function AppLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgPage } }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="history" />
-      <Stack.Screen name="goals" />
-      <Stack.Screen name="badges" />
-      <Stack.Screen name="settings" />
-      <Stack.Screen name="result/[id]" />
-      <Stack.Screen name="chat/[id]" />
-    </Stack>
+    // 알림은 로그인하는 순간부터 한 번만 구독해 모든 화면이 나눠 쓴다 (더보기 탭의 숫자 · 홈의 종 · 알림 화면)
+    <NotificationsProvider>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgPage } }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="history" />
+        <Stack.Screen name="goals" />
+        <Stack.Screen name="badges" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="result/[id]" />
+        <Stack.Screen name="chat/[id]" />
+      </Stack>
+    </NotificationsProvider>
   );
 }

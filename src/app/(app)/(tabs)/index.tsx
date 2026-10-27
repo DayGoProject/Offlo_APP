@@ -8,6 +8,7 @@ import { useAuth } from "@/auth-context";
 import DashboardView, { type DashboardData } from "@/components/dashboard/DashboardView";
 import { useAnalysesChanged } from "@/hooks/analyses-changed";
 import { useGoalsChanged } from "@/hooks/goals-changed";
+import { useNotifications } from "@/hooks/notifications-context";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { firstName, firstRecommendation } from "@/logic/dashboard";
 import { api } from "@/services/api";
@@ -16,6 +17,7 @@ import { readGarden } from "@/services/garden";
 export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
+  const { unread } = useNotifications();
   // 화면을 연 시각 기준으로 오늘·이번 주를 정한다
   const [now] = useState(() => new Date());
 
@@ -56,6 +58,8 @@ export default function HomeTab() {
       onOpenAnalysis={() => router.navigate("/analysis")}
       onOpenGoals={() => router.push("/goals")}
       onOpenGarden={() => router.navigate("/garden")}
+      unreadCount={unread}
+      onOpenNotifications={() => router.push("/notifications")}
     />
   );
 }

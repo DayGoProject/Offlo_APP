@@ -9,7 +9,19 @@ import type { DashboardData } from "@/components/dashboard/DashboardView";
 import type { AnalysisRecords } from "@/logic/analysis";
 import type { ChatItem } from "@/logic/chat";
 import type { BadgeStats } from "@/logic/badges";
-import type { Analysis, AnalysisSummary, ApiUser, Badge, FeedComment, FeedPost, GardenSnapshot, Goal, RankingEntry } from "@/services/api-types";
+import type {
+  Analysis,
+  AnalysisSummary,
+  ApiUser,
+  Badge,
+  FeedComment,
+  FeedPost,
+  GardenSnapshot,
+  Goal,
+  NotificationItem,
+  NotificationType,
+  RankingEntry,
+} from "@/services/api-types";
 
 export const SAMPLE_NOW = new Date(2026, 8, 17, 10, 0, 0);
 export const SAMPLE_NAME = "지우";
@@ -226,6 +238,30 @@ export function gardenWeekRecords(daily: number, weeklyDone: boolean): AnalysisR
       : [],
   };
 }
+
+/* ── M8 · 알림 ────────────────────────────────────────────────── */
+
+const noti = (id: string, type: NotificationType, title: string, body: string, minutesAgo: number, read: boolean, link?: string): NotificationItem => ({
+  id,
+  type,
+  title,
+  body,
+  ...(link ? { link } : {}),
+  read,
+  createdAt: new Date(SAMPLE_NOW.getTime() - minutesAgo * 60_000).toISOString(),
+});
+
+/** 서버가 쌓는 알림 모양 그대로 — 안 읽은 3개(배지 · 댓글 · 식물)와 읽은 5개. `n7`은 갈 곳이 없고 `n8`은 앱이 열지 않는 외부 주소다 */
+export const NOTIFICATIONS_READY: NotificationItem[] = [
+  noti("n1", "badge_earned", "새 배지 획득 🏆", "'7일 연속' 배지를 얻었어요!", 12, false, "/badges"),
+  noti("n2", "post_comment", "새 댓글이 달렸어요 💬", "서연님이 회원님의 글에 댓글을 남겼어요.", 75, false, "/community?post=p-03"),
+  noti("n3", "plant_levelup", "반려 식물이 성장했어요 🌱", "식물이 '새싹' 단계로 자랐어요!", 5 * 60, false, "/garden"),
+  noti("n4", "goal_deadline", "목표 마감이 하루 남았어요", "'하루 4시간 이하' 목표가 내일 끝나요.", 26 * 60, true, "/goals"),
+  noti("n5", "pet_hungry", "동물이 배고파해요", "이틀째 밥을 못 먹었어요. 오늘 분석을 올려 주세요.", 2 * 24 * 60, true, "/garden"),
+  noti("n6", "daily_reminder", "오늘 분석을 올려 보세요", "저녁이 되기 전에 오늘의 스크린타임을 확인해 보세요.", 3 * 24 * 60, true, "/analysis"),
+  noti("n7", "daily_reminder", "점검 안내", "서버 점검이 끝났어요. 이용해 주셔서 감사합니다.", 4 * 24 * 60, true),
+  noti("n8", "daily_reminder", "이벤트 소식", "외부 주소가 걸린 알림은 읽음 처리만 되고 앱이 열지 않아요.", 5 * 24 * 60, true, "https://example.com/event"),
+];
 
 /* ── M7 · 설정 ────────────────────────────────────────────────── */
 

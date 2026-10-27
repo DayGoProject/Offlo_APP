@@ -44,6 +44,8 @@ export const colors = {
 
   brand: BRAND,
   accentSoft: "rgba(61, 219, 135, 0.13)",
+  /** 안 읽은 알림 줄의 바탕 — 브랜드 그린의 아주 옅은 투명도 */
+  accentFaint: "rgba(61, 219, 135, 0.06)",
   accentLine: "rgba(61, 219, 135, 0.14)",
   /** 주간 막대에서 오늘 한 칸 */
   brandBar: "rgba(61, 219, 135, 0.55)",

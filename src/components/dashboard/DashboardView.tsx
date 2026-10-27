@@ -13,6 +13,7 @@ import Pill from "@/components/app/Pill";
 import Screen from "@/components/app/Screen";
 import Skeleton from "@/components/app/Skeleton";
 import AiTip from "@/components/dashboard/AiTip";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import GardenCard from "@/components/dashboard/GardenCard";
 import GoalProgressList from "@/components/dashboard/GoalProgressList";
 import Stat, { StatGrid } from "@/components/dashboard/Stat";
@@ -43,6 +44,9 @@ export interface DashboardViewProps {
   onOpenAnalysis: () => void;
   onOpenGoals: () => void;
   onOpenGarden: () => void;
+  /** 알림 종 — 주면 헤더 오른쪽 위에 종(안 읽은 알림 수 배지 포함)이 붙는다 */
+  unreadCount?: number;
+  onOpenNotifications?: () => void;
 }
 
 const grouped = (n: number) => n.toLocaleString("ko-KR");
@@ -58,7 +62,10 @@ export default function DashboardView({
   onOpenAnalysis,
   onOpenGoals,
   onOpenGarden,
+  unreadCount = 0,
+  onOpenNotifications,
 }: DashboardViewProps) {
+  const bell = onOpenNotifications ? <NotificationBell unread={unreadCount} onPress={onOpenNotifications} /> : undefined;
   const actions = (
     <>
       <Pill label="기록 보기" onPress={onOpenHistory} testID="open-history" />
@@ -70,7 +77,7 @@ export default function DashboardView({
   if (!data && error && !loading) {
     return (
       <Screen testID="dashboard" underTabBar onRefresh={onRetry}>
-        <PageHeader eyebrow={fmtDateEyebrow(now)} title={`${name}님, 안녕하세요`} actions={actions} />
+        <PageHeader eyebrow={fmtDateEyebrow(now)} title={`${name}님, 안녕하세요`} actions={actions} corner={bell} />
         <ErrorNotice testID="dashboard-error" message={error} onRetry={onRetry} />
       </Screen>
     );
@@ -99,6 +106,7 @@ export default function DashboardView({
         eyebrow={fmtDateEyebrow(now)}
         title={streak > 0 ? `${streak}일째, 잘 버티고 있어요` : `${name}님, 오늘부터 시작해요`}
         actions={actions}
+        corner={bell}
       />
 
       {/* 새로고침만 실패 — 이전 숫자는 남기고 위에 알린다 */}

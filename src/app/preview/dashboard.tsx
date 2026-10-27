@@ -10,7 +10,8 @@ import { API_MESSAGES } from "@/services/api-client";
 const noop = () => {};
 
 export default function DashboardPreview() {
-  const { state = "ready" } = useLocalSearchParams<{ state?: string }>();
+  // `&unread=3`이면 헤더에 알림 종(안 읽은 알림 수 배지 포함)이 붙는다
+  const { state = "ready", unread } = useLocalSearchParams<{ state?: string; unread?: string }>();
 
   return (
     <DashboardView
@@ -24,6 +25,8 @@ export default function DashboardPreview() {
       onOpenAnalysis={noop}
       onOpenGoals={noop}
       onOpenGarden={noop}
+      unreadCount={Number(unread ?? 0) || 0}
+      onOpenNotifications={unread !== undefined ? noop : undefined}
     />
   );
 }

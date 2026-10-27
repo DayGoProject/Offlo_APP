@@ -108,6 +108,16 @@ const SCREENS: { path: string; title: string; states: readonly { state: string; 
     ],
   },
   {
+    path: "/preview/notifications",
+    title: "알림 (더보기 → 알림 · 홈의 종)",
+    states: [
+      { state: "ready", label: "안 읽은 3 · 읽은 5" },
+      { state: "empty", label: "알림 없음" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
     path: "/preview/chat",
     title: "AI 코치 채팅",
     states: [

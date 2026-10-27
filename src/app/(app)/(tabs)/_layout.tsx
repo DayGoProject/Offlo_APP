@@ -7,9 +7,13 @@
 import { Tabs } from "expo-router/js-tabs";
 
 import { AnalysisIcon, CommunityIcon, GardenIcon, HomeIcon, MoreIcon } from "@/components/app/TabIcons";
+import { useNotifications } from "@/hooks/notifications-context";
+import { badgeLabel } from "@/logic/notifications";
 import { colors, fonts } from "@/theme";
 
 export default function TabsLayout() {
+  // 안 읽은 알림이 있으면 알림이 들어 있는 "더보기" 탭에 숫자 배지를 붙인다
+  const { unread } = useNotifications();
   return (
     <Tabs
       screenOptions={{
@@ -51,7 +55,13 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="more"
-        options={{ title: "더보기", tabBarButtonTestID: "tab-more", tabBarIcon: ({ color }) => <MoreIcon color={color} /> }}
+        options={{
+          title: "더보기",
+          tabBarButtonTestID: "tab-more",
+          tabBarIcon: ({ color }) => <MoreIcon color={color} />,
+          tabBarBadge: unread > 0 ? badgeLabel(unread) : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.brand, color: colors.bgPage, fontFamily: fonts.num, fontSize: 10 },
+        }}
       />
     </Tabs>
   );

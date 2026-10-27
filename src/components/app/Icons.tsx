@@ -135,3 +135,18 @@ export function CommentIcon({ color, size = 16 }: IconProps) {
     </Svg>
   );
 }
+
+/** 알림 종 (22 뷰박스 · 세선) */
+export function BellIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 22 22" fill="none">
+      <Path
+        d="M11 3.2c-3 0-5.2 2.3-5.2 5.3v2.3c0 .9-.3 1.7-.9 2.4l-.8 1c-.5.6-.1 1.5.7 1.5h12.4c.8 0 1.2-.9.7-1.5l-.8-1c-.6-.7-.9-1.5-.9-2.4V8.5c0-3-2.2-5.3-5.2-5.3z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+      <Path d="M8.8 17.3a2.3 2.3 0 0 0 4.4 0" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}

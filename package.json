@@ -87,6 +87,10 @@
     "verify:M7-goals-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M7-goals-api.mjs",
     "verify:M7-web": "node scripts/verify-M7-web.mjs",
     "verify:M7-android": "node scripts/verify-M7-android.mjs",
+    "verify:M8": "npm run verify:M7 && npm run verify:M8-logic && node scripts/verify-M8-web.mjs && node scripts/verify-M8-android.mjs",
+    "verify:M8-logic": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M8-logic.mjs",
+    "verify:M8-web": "node scripts/verify-M8-web.mjs",
+    "verify:M8-android": "node scripts/verify-M8-android.mjs",
     "android:build": "expo run:android --no-bundler"
   },
   "private": true

@@ -11,6 +11,7 @@ import Card, { CardHeader } from "@/components/app/Card";
 import ErrorNotice from "@/components/app/ErrorNotice";
 import PageHeader from "@/components/app/PageHeader";
 import Screen from "@/components/app/Screen";
+import { useNotifications } from "@/hooks/notifications-context";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { api } from "@/services/api";
 import { fmtDate } from "@/shared/format";
@@ -20,6 +21,7 @@ export default function MoreTab() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const profile = useApiQuery((signal) => api.users.me(signal));
+  const { unread } = useNotifications();
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
@@ -50,6 +52,7 @@ export default function MoreTab() {
       </Card>
 
       <Card style={styles.menuCard}>
+        <MenuRow label="알림" onPress={() => router.push("/notifications")} count={unread} testID="menu-notifications" />
         <MenuRow label="분석 기록" onPress={() => router.push("/history")} testID="menu-history" />
         <MenuRow label="목표" onPress={() => router.push("/goals")} testID="menu-goals" />
         <MenuRow label="배지" onPress={() => router.push("/badges")} testID="menu-badges" />
@@ -82,6 +85,7 @@ function MenuRow({
   label,
   onPress,
   badge,
+  count = 0,
   tone = "default",
   last = false,
   testID,
@@ -90,6 +94,8 @@ function MenuRow({
   onPress?: () => void;
   /** 아직 열리지 않은 메뉴 — 해당 단계 표시 */
   badge?: string;
+  /** 안 읽은 알림 수 같은 숫자 — 0이면 그리지 않는다 */
+  count?: number;
   tone?: "default" | "danger";
   last?: boolean;
   testID?: string;
@@ -112,7 +118,13 @@ function MenuRow({
       >
         {label}
       </Text>
-      {badge ? <Text style={styles.badge}>{badge}에서 열려요</Text> : enabled ? <Text style={styles.chevron}>›</Text> : null}
+      {badge ? <Text style={styles.badge}>{badge}에서 열려요</Text> : null}
+      {count > 0 ? (
+        <Text testID={`${testID}-count`} accessibilityLabel={`읽지 않은 알림 ${count}개`} style={styles.count}>
+          {count}
+        </Text>
+      ) : null}
+      {!badge && enabled ? <Text style={styles.chevron}>›</Text> : null}
     </Pressable>
   );
 }
@@ -160,6 +172,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 12,
     color: colors.textFaint,
+  },
+  count: {
+    marginLeft: "auto",
+    marginRight: 8,
+    minWidth: 20,
+    paddingHorizontal: 6,
+    height: 20,
+    textAlign: "center",
+    lineHeight: 20,
+    borderRadius: 10,
+    overflow: "hidden",
+    fontFamily: fonts.num,
+    fontSize: 11,
+    color: colors.bgPage,
+    backgroundColor: colors.brand,
   },
   chevron: {
     fontFamily: fonts.regular,
