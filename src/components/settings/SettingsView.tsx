@@ -17,6 +17,7 @@ import Screen from "@/components/app/Screen";
 import Skeleton from "@/components/app/Skeleton";
 import TextField from "@/components/app/TextField";
 import Avatar from "@/components/community/Avatar";
+import RemindersCard, { type RemindersCardProps } from "@/components/settings/RemindersCard";
 import { DELETE_LOSSES, DELETE_PHRASE, NAME_MAX, canDeleteAccount, checkName, joinedLabel, providerLabel } from "@/logic/settings";
 import type { ApiUser } from "@/services/api-types";
 import { colors, fonts, radius } from "@/theme";
@@ -33,9 +34,11 @@ export interface SettingsViewProps {
   onSignOut: () => Promise<void>;
   /** 회원 탈퇴 — 실패하면 문구, 성공하면 null (이어서 로그아웃돼 로그인 화면으로 간다) */
   onDeleteAccount: () => Promise<string | null>;
+  /** 리마인더(로컬 예약 알림) 설정 — 안 주면 카드를 그리지 않는다 */
+  reminders?: RemindersCardProps;
 }
 
-export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount }: SettingsViewProps) {
+export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount, reminders }: SettingsViewProps) {
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
@@ -84,6 +87,8 @@ export default function SettingsView({ profile, providerIds, loading, error, onR
 
           {/* 이름 — 저장하면 서버 이름이 바뀐다 (`profile.name`이 새 이름이 되면 "바뀌지 않음"이라 저장 버튼이 다시 잠긴다) */}
           <NameCard current={profile.name} onSave={onSaveName} />
+
+          {reminders ? <RemindersCard {...reminders} /> : null}
 
           <Card testID="settings-account">
             <CardHeader title="계정" />

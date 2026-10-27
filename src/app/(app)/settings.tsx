@@ -11,6 +11,7 @@ import { updateProfile } from "firebase/auth";
 import { useAuth } from "@/auth-context";
 import SettingsView from "@/components/settings/SettingsView";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useReminders } from "@/hooks/reminders-context";
 import { nameSaveHint } from "@/logic/settings";
 import { api } from "@/services/api";
 import { ApiError, getErrorMessage } from "@/services/api-client";
@@ -19,6 +20,7 @@ import { auth } from "@/services/firebase";
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const profile = useApiQuery((signal) => api.users.me(signal));
+  const reminders = useReminders();
 
   const saveName = async (name: string): Promise<string | null> => {
     try {
@@ -52,6 +54,16 @@ export default function SettingsScreen() {
       onSaveName={saveName}
       onSignOut={signOut}
       onDeleteAccount={deleteAccount}
+      reminders={{
+        supported: reminders.supported,
+        ready: reminders.ready,
+        prefs: reminders.prefs,
+        permission: reminders.permission,
+        busy: reminders.busy,
+        error: reminders.error,
+        onToggle: (kind, on) => void reminders.setPref(kind, on),
+        onOpenSettings: reminders.openSettings,
+      }}
     />
   );
 }

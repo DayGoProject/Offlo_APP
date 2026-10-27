@@ -97,6 +97,7 @@ export default function NotificationsPreview() {
           setNavigated(where);
         }}
         onMarkAllRead={() => void feed.markAllRead()}
+        onOpenReminders={() => log("go /settings")}
       />
       {/* 헤더 종의 숫자가 같은 목록을 따라가는지 보는 표식 (화면 밖 · 검증 전용) */}
       <PreviewBell unread={feed.unread} />

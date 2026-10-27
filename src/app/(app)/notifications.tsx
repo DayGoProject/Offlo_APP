@@ -35,6 +35,7 @@ export default function NotificationsScreen() {
       onRetry={feed.retry}
       onOpen={open}
       onMarkAllRead={() => void feed.markAllRead()}
+      onOpenReminders={() => router.push("/settings")}
     />
   );
 }

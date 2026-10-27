@@ -31,9 +31,11 @@ export interface NotificationsViewProps {
   /** 한 줄을 눌렀다 — 읽음 처리와 화면 이동은 부모가 한다 */
   onOpen: (item: NotificationItem) => void;
   onMarkAllRead: () => void;
+  /** 리마인더(예약 알림) 설정으로 — 안 주면 안내 줄을 그리지 않는다 */
+  onOpenReminders?: () => void;
 }
 
-export default function NotificationsView({ now, items, error, actionError, onRetry, onOpen, onMarkAllRead }: NotificationsViewProps) {
+export default function NotificationsView({ now, items, error, actionError, onRetry, onOpen, onMarkAllRead, onOpenReminders }: NotificationsViewProps) {
   const unread = items ? unreadCount(items) : 0;
 
   return (
@@ -69,6 +71,18 @@ export default function NotificationsView({ now, items, error, actionError, onRe
           ))}
         </Card>
       )}
+
+      {onOpenReminders && items ? (
+        <Pressable
+          testID="notifications-reminders-link"
+          accessibilityRole="link"
+          onPress={onOpenReminders}
+          style={({ pressed }) => [styles.reminders, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={styles.remindersLabel}>리마인더 알림 설정</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      ) : null}
     </Screen>
   );
 }
@@ -183,6 +197,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     color: colors.textFaint,
+  },
+  reminders: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  remindersLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.textMuted,
   },
   chevron: {
     alignSelf: "center",

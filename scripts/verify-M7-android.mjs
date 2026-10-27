@@ -17,7 +17,7 @@
  *   2. 목표 — 불러오기 · 입력 검증 · 추가(제목 · 빠른 선택 · **달력(모달 위의 모달)**) · 수정 · 삭제 · 서버에 실제로 반영됐는가(앱을 껐다 켜도) · 끝나면 처음 상태
  *   3. 배지 — 획득 + 잠김 = 4 · 잠긴 배지 진행도 · 자랑하기 모달(열고 닫기만)
  *   4. 커뮤니티 — 실서버 피드 · 랭킹 · 글쓰기 입력(키보드 · 글자 수 · 올리지는 않는다) · 댓글 펼치기(읽기만)
- *   5. 설정 — 프로필 · 이름 변경(서버가 이 라우트를 아직 모르면 업데이트 안내) · 탈퇴 확인 문구
+ *   5. 설정 — 프로필 · 이름 입력(저장은 누르지 않는다 — 공개 이름이라 공개 변경이다) · 탈퇴 확인 문구
  *   6. 앱 생존 · JS 에러 · 네이티브 크래시 0
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -246,7 +246,9 @@ try {
   check(/^\d{4}년 \d{1,2}월$/.test(monthText), "달력 — 연 · 월 머리글", monthText);
   const days = [...picker.xml.matchAll(/resource-id="date-(\d{4}-\d{2}-\d{2})"/g)].map((m) => m[1]);
   const enabledDays = days.filter((d) => nodeOf(picker.xml, `date-${d}`)?.enabled);
-  check(days.length >= 28 && enabledDays.length > 0 && enabledDays.length < days.length, "달력 — 한 달이 그려지고 시작일 이전(오늘 이전)은 비활성이다", `${days.length}칸 · 활성 ${enabledDays.length}`);
+  // 종료일 달력은 시작일 + 7일이 있는 달로 열린다 — 월말이면 다음 달이라 비활성이 하나도 없다(전부 시작일 뒤). 시작일과 같은 달일 때만 이전 날이 비활성이어야 한다
+  const startMonth = `${new Date(Date.now() + 9 * 3600_000).getUTCFullYear()}년 ${new Date(Date.now() + 9 * 3600_000).getUTCMonth() + 1}월`;
+  check(days.length >= 28 && enabledDays.length > 0 && (monthText !== startMonth || enabledDays.length < days.length), "달력 — 한 달이 그려지고 시작일 이전(오늘 이전)은 비활성이다 (시작일과 다른 달이면 전부 활성)", `${monthText} · ${days.length}칸 · 활성 ${enabledDays.length}`);
   // 활성인 마지막 날을 고른다 (종료일은 시작일 다음 날부터라 그 달 말일이 가장 안전하다)
   const pick = enabledDays.at(-1);
   tapId(picker.xml, `date-${pick}`);
@@ -290,8 +292,9 @@ try {
   const ask = await until((x) => has(x, `goal-ask-${goalId}`), 8000);
   check(ask.ok && (nodeOf(ask.xml, `goal-ask-${goalId}`)?.text ?? "").length >= 0 && !has(ask.xml, `goal-edit-${goalId}`), "삭제 → 카드 안에서 한 번 더 묻는다 (다른 버튼은 감춘다)");
   tapId(ask.xml, `goal-ask-ok-${goalId}`);
-  const gone = await until((x) => !x.includes("verify goal edited"), 25_000);
-  check(gone.ok && goalIds(gone.xml).length === before.length, "삭제 확인 → 목록이 처음 상태로 돌아온다 (실서버 DELETE)", `${goalIds(gone.xml).length}개`);
+  // 수정이 안 됐다면 "edited" 글자가 처음부터 없어 조건이 곧바로 참이 된다 — 두 제목이 모두 사라지고 개수가 처음으로 돌아올 때까지 기다린다
+  const gone = await until((x) => !x.includes("verify goal edited") && !x.includes("verify goal M7") && goalIds(x).length === before.length, 25_000);
+  check(gone.ok, "삭제 확인 → 목록이 처음 상태로 돌아온다 (실서버 DELETE)", `${goalIds(gone.xml).length}개`);
 
   /* ── 3. 배지 ─────────────────────────────────────────────── */
   await openRoute("badges");
@@ -338,7 +341,8 @@ try {
   const feed = await until((x) => has(x, "community") && (has(x, "composer") || has(x, "feed-error")), 25_000);
   check(feed.ok && !has(feed.xml, "feed-error"), "커뮤니티 탭 — 실서버 피드가 불러와진다 (글쓰기 칸이 보인다)");
   shot("M7-android-community.png");
-  const postIds = [...feed.xml.matchAll(/resource-id="post-(c[a-z0-9]{20,})"/g)].map((m) => m[1]);
+  // 글 본문 글자(`post-content-<id>`)로 센다 — 글 id 모양(cuid · uuid)에 기대지 않는다
+  const postIds = [...feed.xml.matchAll(/resource-id="post-content-([^"]+)"/g)].map((m) => m[1]);
   console.log(`  · 첫 화면에 보이는 글: ${postIds.length}개 (${has(feed.xml, "feed-empty") ? "피드가 비어 있음" : "내용은 출력하지 않는다"})`);
   check(postIds.length > 0 || has(feed.xml, "feed-empty"), "피드 — 글 카드가 있거나 빈 안내가 뜬다");
 
@@ -351,7 +355,8 @@ try {
     await typeText("keyboard test");
     await hideKeyboard();
     const typed = dumpUi();
-    check(nodeOf(typed, "composer-input")?.text === "keyboard test" && nodeOf(typed, "composer-count")?.text === "13 / 1000", "글쓰기 — 입력이 들어가고 글자 수가 센다 (13 / 1000)", nodeOf(typed, "composer-count")?.text ?? "");
+    check((nodeOf(typed, "composer-input")?.text ?? "").toLowerCase() === "keyboard test" && // 키보드가 첫 글자를 대문자로 바꿀 수 있다
+       nodeOf(typed, "composer-count")?.text === "13 / 1000", "글쓰기 — 입력이 들어가고 글자 수가 센다 (13 / 1000)", nodeOf(typed, "composer-count")?.text ?? "");
     check(nodeOf(typed, "composer-submit")?.enabled === true, "글쓰기 — 내용이 생기면 \"글 올리기\"가 열린다 (누르지는 않는다)");
     tapId(typed, "composer-input");
     await wait(600);
@@ -399,32 +404,17 @@ try {
   check(!settings.xml.includes("비밀번호") && !settings.xml.includes("테마"), "설정 — 비밀번호 변경 · 테마 항목은 없다");
   check(nodeOf(settings.xml, "name-save")?.enabled === false, "이름 — 바꾸기 전에는 \"이름 저장\"이 잠겨 있다");
 
-  // 이름 변경 — 서버가 이 라우트를 아직 모르면(405/404) 업데이트 안내가 떠야 한다 (이름은 바뀌지 않는다)
+  // 이름 — **저장은 누르지 않는다.** 서버 이름은 커뮤니티 글 · 댓글 · 랭킹에 공개되는 값이라 이름 변경은 공개 변경이다 (security.md). 서버가 이 라우트를 모르던 때(405)에는 거절만 확인했지만
+  // 배포된 뒤에는 실제로 바뀌어 버리므로 입력 → "이름 저장"이 열리는 데까지만 보고, 저장 흐름은 웹 미리보기의 가짜 서버(verify:M7-web)와 verify:M7-users-api가 같은 코드로 검증한다.
   tapId(settings.xml, "name-input");
   await wait(700);
   await clearField(40);
   await typeText("verifyname");
   await hideKeyboard();
   const nameForm = dumpUi();
-  check(nodeOf(nameForm, "name-save")?.enabled === true, "이름을 바꾸면 \"이름 저장\"이 열린다");
-  tapId(nameForm, "name-save");
-  const saved = await until((x) => has(x, "name-saved") || has(x, "name-error"), 20_000);
-  const serverKnowsRoute = has(saved.xml, "name-saved");
-  if (serverKnowsRoute) {
-    console.log("  · 서버가 이름 변경을 이미 지원한다 — 원래 이름으로 되돌린다");
-    tapId(dumpUi(), "name-input");
-    await wait(700);
-    await clearField(40);
-    await typeText(realName.replace(/[^A-Za-z0-9 ]/g, "") || "user");
-    await hideKeyboard();
-    check(true, "서버 이름 변경 성공 (실서버 PATCH /api/users/me)");
-  } else {
-    // 경고 상자(`name-error`)는 컨테이너라 글자가 자식 뷰에 있다 — 화면 전체의 글자에서 찾는다
-    const shown = [...saved.xml.matchAll(/text="([^"]*)"/g)].map((m) => m[1]).find((t) => t.includes("서버가") || t.includes("요청을 처리하지") || t.includes("연결")) ?? "";
-    check(saved.xml.includes("서버가 업데이트된 뒤에 다시 시도해주세요"), "서버가 이름 변경을 아직 모르면(웹 미배포) 업데이트 안내가 뜬다 — 실서버가 PATCH를 405/404로 거절했다", shown.slice(0, 80));
-    const afterFail = nodeOf(saved.xml, "settings-name")?.text;
-    check(afterFail === realName, "이름 변경이 거절돼도 서버 이름은 그대로다");
-  }
+  check(nodeOf(nameForm, "name-save")?.enabled === true, "이름을 바꾸면 \"이름 저장\"이 열린다 (저장은 누르지 않는다)");
+  // 입력만 했으니 서버에는 아무것도 가지 않았다 — 입력칸을 비워 두고 넘어간다 (화면을 나가면 사라진다)
+  await clearField(40);
   scrollDown(1400);
   await wait(800);
   const dangerView = dumpUi();

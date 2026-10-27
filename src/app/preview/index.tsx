@@ -118,6 +118,16 @@ const SCREENS: { path: string; title: string; states: readonly { state: string; 
     ],
   },
   {
+    path: "/preview/reminders",
+    title: "리마인더 설정 (설정 → 리마인더 알림 · 가짜 기기)",
+    states: [
+      { state: "undetermined", label: "처음 — 권한을 아직 안 물음" },
+      { state: "granted", label: "권한 허용됨" },
+      { state: "denied", label: "거절함 — 기기 설정으로" },
+      { state: "unsupported", label: "쓸 수 없는 환경 (웹 · Expo Go)" },
+    ],
+  },
+  {
     path: "/preview/chat",
     title: "AI 코치 채팅",
     states: [
