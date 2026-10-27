@@ -5,7 +5,7 @@
  * 이름 공개 안내는 한 번 닫으면 다시 안 뜬다 (AsyncStorage — 읽기 · 쓰기 실패는 무시한다: 안내가 한 번 더 뜰 뿐이다).
  * 배지를 자랑하면(`notifyPostsChanged`) 새 글이 맨 위에 오도록 첫 페이지를 다시 읽는다. 알림 링크 `?post=<id>`는 그 글을 강조한다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 
@@ -13,9 +13,11 @@ import { useAuth } from "@/auth-context";
 import CommunityView, { type CommunityMode } from "@/components/community/CommunityView";
 import { usePostsChanged } from "@/hooks/community-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useCommunityRules } from "@/hooks/use-community-rules";
 import { useFeed, type FeedServer } from "@/hooks/use-feed";
 import { NOTICE_KEY } from "@/logic/community";
 import { api } from "@/services/api";
+import { communityRulesStore } from "@/services/community-rules";
 
 const server: FeedServer = {
   page: (cursor) => api.community.feed(cursor),
@@ -25,6 +27,8 @@ const server: FeedServer = {
   comments: (postId) => api.community.comments(postId),
   addComment: (postId, content) => api.community.createComment(postId, content),
   deleteComment: (commentId) => api.community.deleteComment(commentId),
+  report: (targetType, targetId, reason) => api.community.report(targetType, targetId, reason),
+  block: (targetType, targetId) => api.community.blockAuthor(targetType, targetId),
 };
 
 export default function CommunityTab() {
@@ -36,6 +40,11 @@ export default function CommunityTab() {
   const feed = useFeed(server);
   const ranking = useApiQuery((signal) => api.community.ranking(signal));
   usePostsChanged(feed.reload);
+
+  // 이용 규칙 동의 — 사용자별로 이 기기에 저장한다 (글 · 댓글을 쓰기 직전에 확인)
+  const uid = user?.uid ?? "";
+  const rulesStore = useMemo(() => communityRulesStore(uid), [uid]);
+  const rules = useCommunityRules(rulesStore);
 
   // 탭에 돌아올 때마다 "n분 전"을 새로 센다 (글은 당겨서 새로고침으로 다시 읽는다 — 읽던 자리를 잃지 않게)
   useFocusEffect(
@@ -86,6 +95,9 @@ export default function CommunityTab() {
       onDismissNotice={dismissNotice}
       highlightId={highlightId ?? null}
       actions={feed.actions}
+      rules={rules}
+      feedNotice={feed.notice}
+      onDismissFeedNotice={feed.dismissNotice}
       ranking={{ data: ranking.data, error: ranking.error, onRetry: reloadRanking }}
     />
   );

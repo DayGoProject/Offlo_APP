@@ -108,6 +108,16 @@ const SCREENS: { path: string; title: string; states: readonly { state: string; 
     ],
   },
   {
+    path: "/preview/blocked",
+    title: "차단한 사용자 (설정 → 차단한 사용자)",
+    states: [
+      { state: "ready", label: "차단 2명" },
+      { state: "empty", label: "차단한 사람 없음" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  {
     path: "/preview/notifications",
     title: "알림 (더보기 → 알림 · 홈의 종)",
     states: [

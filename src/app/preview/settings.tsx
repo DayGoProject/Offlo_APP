@@ -41,6 +41,7 @@ export default function SettingsPreview() {
         log("signout");
         await sleep(150);
       }}
+      onOpenBlocked={() => log("open-blocked")}
       onDeleteAccount={async () => {
         log("delete");
         await sleep(250);

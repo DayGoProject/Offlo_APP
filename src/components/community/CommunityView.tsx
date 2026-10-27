@@ -5,6 +5,9 @@
  *
  * 피드는 `FlatList`다 (끝에 닿으면 다음 페이지 — 커서 페이지네이션이 서버에 이미 있다). 머리(제목 · 탭 · 안내 · 글쓰기)는 목록 머리로,
  * 글 한 개가 한 항목이다. "주간 랭킹"은 같은 화면의 다른 모습이다 (모드 전환) — 웹의 오른쪽 위젯 자리가 모바일엔 없다.
+ *
+ * M9 — 사용자 생성 콘텐츠(UGC) 정책: 글 · 댓글을 쓰기 전에 **이용 규칙 동의**(`rules`)를 받고, 글 카드마다 **신고 · 차단**(PostCard)이 있으며,
+ * 신고 · 차단을 마치면 글 카드가 사라지므로 **안내는 목록 아래에 띄운다**(`feedNotice`). 규칙은 머리의 "커뮤니티 이용 규칙" 줄에서 언제든 다시 볼 수 있다.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -26,8 +29,10 @@ import PageHeader from "@/components/app/PageHeader";
 import Segmented from "@/components/app/Segmented";
 import Skeleton from "@/components/app/Skeleton";
 import Avatar from "@/components/community/Avatar";
+import CommunityRulesModal from "@/components/community/CommunityRulesModal";
 import PostCard, { type PostActions } from "@/components/community/PostCard";
 import RankingCard, { type RankingData } from "@/components/community/RankingCard";
+import type { CommunityRules } from "@/hooks/use-community-rules";
 import { POST_MAX, checkPost, indexOfPost } from "@/logic/community";
 import type { FeedPost } from "@/services/api-types";
 import { colors, fonts, radius } from "@/theme";
@@ -62,7 +67,13 @@ export interface CommunityViewProps {
   onDismissNotice: () => void;
   /** 알림 링크로 들어온 글 — 테두리를 강조하고 그 자리로 스크롤한다 (첫 페이지에 없으면 강조하지 않는다) */
   highlightId?: string | null;
-  actions: PostActions;
+  /** 카드 동작 — 이용 규칙 동의(`ensureRules`)는 아래 `rules`에서 이 화면이 끼워 넣는다 */
+  actions: Omit<PostActions, "ensureRules">;
+  /** 이용 규칙 동의 문 (`useCommunityRules`) — 글 쓰기 · 댓글 쓰기 직전에 확인한다 */
+  rules: CommunityRules;
+  /** 신고 · 차단을 마친 뒤의 안내 (없으면 null) */
+  feedNotice: string | null;
+  onDismissFeedNotice: () => void;
 
   ranking: {
     data: RankingData | null;
@@ -87,9 +98,11 @@ export default function CommunityView(props: CommunityViewProps) {
     onLoadMore,
     onPost,
     highlightId,
-    actions,
+    rules,
   } = props;
   const insets = useSafeAreaInsets();
+  const ensureRules = rules.ensure;
+  const actions: PostActions = { ...props.actions, ensureRules };
   const list = useRef<FlatList<FeedPost>>(null);
 
   const [draft, setDraft] = useState("");
@@ -121,6 +134,7 @@ export default function CommunityView(props: CommunityViewProps) {
       if (!checked.empty) setPostError(checked.error);
       return;
     }
+    if (!(await ensureRules())) return; // 규칙에 동의하지 않으면 올리지 않는다 (쓴 글은 남긴다)
     setPosting(true);
     setPostError(null);
     try {
@@ -204,6 +218,17 @@ export default function CommunityView(props: CommunityViewProps) {
             </View>
             {postError ? <ErrorNotice testID="composer-error" message={postError} /> : null}
           </Card>
+
+          <Pressable
+            testID="community-rules-link"
+            accessibilityRole="link"
+            accessibilityLabel="커뮤니티 이용 규칙 보기"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={rules.show}
+            style={styles.rulesLink}
+          >
+            <Text style={styles.rulesLinkText}>커뮤니티 이용 규칙 · 신고 방법 ›</Text>
+          </Pressable>
         </>
       ) : (
         <RankingCard {...props.ranking} />
@@ -253,6 +278,7 @@ export default function CommunityView(props: CommunityViewProps) {
   };
 
   return (
+    <>
     <KeyboardAvoidingView behavior="padding" style={styles.flex}>
       <FlatList
         ref={list}
@@ -289,7 +315,19 @@ export default function CommunityView(props: CommunityViewProps) {
         style={styles.list}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
       />
+
+      {feed && props.feedNotice ? (
+        <View testID="feed-notice" accessibilityRole="alert" style={styles.toast}>
+          <Text style={styles.toastText}>{props.feedNotice}</Text>
+          <Pressable testID="feed-notice-dismiss" accessibilityRole="button" hitSlop={12} onPress={props.onDismissFeedNotice}>
+            <Text style={styles.noticeAction}>확인</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
+
+    <CommunityRulesModal visible={rules.open} alreadyAccepted={rules.accepted === true} onAccept={rules.accept} onClose={rules.dismiss} />
+    </>
   );
 }
 
@@ -342,6 +380,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.textMuted,
+  },
+  rulesLink: {
+    alignSelf: "flex-end",
+    minHeight: 24,
+    justifyContent: "center",
+  },
+  rulesLinkText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  toast: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.accentLine,
+    backgroundColor: colors.bgNav,
+  },
+  toastText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textPrimary,
   },
   composerRow: {
     flexDirection: "row",

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PostActions } from "@/components/community/PostCard";
 import { appendPage, commentCountAfter, likeOptimistic, patchPost, removePost } from "@/logic/community";
+import { NOTICE_REPORTED, noticeBlocked, type ModerationTarget, type ReportReason } from "@/logic/moderation";
 import { getErrorMessage } from "@/services/api-client";
 import type { FeedComment, FeedPost } from "@/services/api-types";
 
@@ -25,6 +26,10 @@ export interface FeedServer {
   comments: (postId: string) => Promise<{ comments: FeedComment[] }>;
   addComment: (postId: string, content: string) => Promise<{ comment: FeedComment }>;
   deleteComment: (commentId: string) => Promise<unknown>;
+  /** 글 · 댓글 신고 — 같은 대상을 다시 신고해도 서버가 한 번만 센다 */
+  report: (targetType: ModerationTarget, targetId: string, reason: ReportReason) => Promise<unknown>;
+  /** 글 · 댓글 작성자를 차단한다 (작성자 id는 서버만 안다) */
+  block: (targetType: ModerationTarget, targetId: string) => Promise<unknown>;
 }
 
 export function useFeed(server: FeedServer) {
@@ -113,7 +118,11 @@ export function useFeed(server: FeedServer) {
 
   const patch = useCallback((id: string, change: Partial<FeedPost>) => setPosts((prev) => (prev ? patchPost(prev, id, change) : prev)), []);
 
-  const actions: PostActions = {
+  /** 신고 · 차단을 마친 뒤 목록 맨 아래에 띄우는 안내 (글 카드는 사라지므로 카드 안에는 둘 자리가 없다) */
+  const [notice, setNotice] = useState<string | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+
+  const actions: Omit<PostActions, "ensureRules"> = {
     async like(target) {
       const before = { liked: target.liked, likeCount: target.likeCount };
       patch(target.id, likeOptimistic(target));
@@ -161,6 +170,47 @@ export function useFeed(server: FeedServer) {
         return getErrorMessage(e);
       }
     },
+    // 신고한 글은 신고한 사람에게 곧바로 숨는다 (서버도 다음 읽기부터 거른다) — 서버가 받은 뒤에만 화면에서 치운다
+    async report(target, reason) {
+      try {
+        await latest.current.server.report("post", target.id, reason);
+      } catch (e) {
+        return getErrorMessage(e);
+      }
+      setPosts((prev) => (prev ? removePost(prev, target.id) : prev));
+      setNotice(NOTICE_REPORTED);
+      return null;
+    },
+    // 차단은 이 글만이 아니라 그 사람의 글이 모두 사라진다 — 이 글은 곧바로 치우고 나머지는 첫 페이지를 다시 읽어 맞춘다
+    async block(target) {
+      try {
+        await latest.current.server.block("post", target.id);
+      } catch (e) {
+        return getErrorMessage(e);
+      }
+      setPosts((prev) => (prev ? removePost(prev, target.id) : prev));
+      setNotice(noticeBlocked(target.authorName));
+      void refresh("quiet");
+      return null;
+    },
+    // 댓글은 글 카드가 남아 있으므로 카드가 직접 안내한다 (댓글 목록을 치우는 일도 카드가 한다)
+    async reportComment(_target, comment, reason) {
+      try {
+        await latest.current.server.report("comment", comment.id, reason);
+        return null;
+      } catch (e) {
+        return getErrorMessage(e);
+      }
+    },
+    async blockComment(_target, comment) {
+      try {
+        await latest.current.server.block("comment", comment.id);
+      } catch (e) {
+        return getErrorMessage(e);
+      }
+      void refresh("quiet"); // 차단한 사람의 글이 피드에서 빠지도록
+      return null;
+    },
   };
 
   return {
@@ -178,5 +228,7 @@ export function useFeed(server: FeedServer) {
     loadMore: () => void loadMore(),
     post,
     actions,
+    notice,
+    dismissNotice,
   };
 }

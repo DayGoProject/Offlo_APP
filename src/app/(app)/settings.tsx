@@ -6,6 +6,7 @@
  * 회원 탈퇴는 서버가 Supabase · Firestore · Firebase Auth 계정까지 지운다. 성공하면 곧바로 로그아웃해 라우트 가드가 로그인 화면으로 보낸다
  * (두 번 가면 안 되는 요청이라 재시도하지 않는다 — 실패하면 문구를 띄우고 사용자가 다시 누른다).
  */
+import { useRouter } from "expo-router";
 import { updateProfile } from "firebase/auth";
 import { Linking } from "react-native";
 
@@ -20,6 +21,7 @@ import { PRIVACY_URL } from "@/config";
 import { auth } from "@/services/firebase";
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const profile = useApiQuery((signal) => api.users.me(signal));
   const reminders = useReminders();
@@ -57,6 +59,7 @@ export default function SettingsScreen() {
       onSignOut={signOut}
       onDeleteAccount={deleteAccount}
       onOpenPrivacy={() => void Linking.openURL(PRIVACY_URL).catch(() => {})}
+      onOpenBlocked={() => router.push("/blocked")}
       reminders={{
         supported: reminders.supported,
         ready: reminders.ready,

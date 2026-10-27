@@ -7,13 +7,18 @@
  *  · 좋아요는 눌러 둔 요청이 끝나기 전에 다시 누르지 않는다 (토글이라 두 번 가면 취소된다).
  *  · 댓글은 처음 펼칠 때만 불러오고 이후엔 카드 안 상태로 관리한다. 등록 · 삭제 뒤의 댓글 수는 부모(`actions`)가 글에 반영한다.
  *  · 삭제(글 · 댓글)는 카드 안에서 한 번 더 묻는다 — OS 대화상자를 쓰지 않는다.
+ *  · 남의 글 · 댓글에는 "신고 · 차단"이 있다 (M9 — Play UGC 정책). 누르면 카드 안에 패널이 펼쳐진다 (`ModerationPanel`).
+ *    글을 신고 · 차단하면 부모가 카드를 치운다 · 댓글은 이 카드가 목록에서 치우고 안내를 남긴다.
+ *  · 댓글을 쓰기 전에 이용 규칙 동의를 확인한다 (`ensureRules` — 동의 전이면 규칙 창이 뜨고, 취소하면 보내지 않는다).
  */
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { CommentIcon, HeartIcon } from "@/components/app/Icons";
 import Avatar from "@/components/community/Avatar";
+import ModerationPanel from "@/components/community/ModerationPanel";
 import { COMMENT_MAX, checkComment, relativeTime } from "@/logic/community";
+import { NOTICE_REPORTED_COMMENT, noticeBlocked, type ReportReason } from "@/logic/moderation";
 import type { FeedComment, FeedPost } from "@/services/api-types";
 import { colors, fonts, radius } from "@/theme";
 
@@ -26,6 +31,14 @@ export interface PostActions {
   comments: (post: FeedPost) => Promise<Result<{ comments: FeedComment[] }>>;
   addComment: (post: FeedPost, text: string) => Promise<Result<{ comment: FeedComment }>>;
   removeComment: (post: FeedPost, comment: FeedComment) => Promise<string | null>;
+  /** 쓰기 직전 — 이용 규칙에 동의했으면 true (동의 전이면 규칙 창을 띄우고 기다린다) */
+  ensureRules: () => Promise<boolean>;
+  /** 글 신고 · 작성자 차단 — 실패하면 문구, 성공하면 null (성공하면 부모가 이 카드를 치운다) */
+  report: (post: FeedPost, reason: ReportReason) => Promise<string | null>;
+  block: (post: FeedPost) => Promise<string | null>;
+  /** 댓글 신고 · 작성자 차단 — 성공하면 null (목록에서 치우는 일은 카드가 한다) */
+  reportComment: (post: FeedPost, comment: FeedComment, reason: ReportReason) => Promise<string | null>;
+  blockComment: (post: FeedPost, comment: FeedComment) => Promise<string | null>;
 }
 
 export default function PostCard({
@@ -51,6 +64,10 @@ export default function PostCard({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmComment, setConfirmComment] = useState<string | null>(null);
+  // 신고 · 차단 패널 — 글 것(modPost) 또는 댓글 하나(modComment)만 열린다
+  const [modPost, setModPost] = useState(false);
+  const [modComment, setModComment] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function like() {
     if (likeBusy) return;
@@ -85,8 +102,10 @@ export default function PostCard({
       if (!checked.empty) setError(checked.error);
       return;
     }
+    if (!(await actions.ensureRules())) return; // 규칙에 동의하지 않으면 보내지 않는다 (입력은 남긴다)
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       const res = await actions.addComment(post, checked.text);
       if (res.ok) {
@@ -117,6 +136,31 @@ export default function PostCard({
       setConfirmDelete(false);
       setError(failed);
     }
+  }
+
+  /** 글 신고 · 차단 — 성공하면 부모가 카드를 치우므로 패널은 에러만 받는다 */
+  const reportPost = (reason: ReportReason) => actions.report(post, reason);
+  const blockPost = () => actions.block(post);
+
+  /** 댓글 신고 — 성공하면 그 댓글을 목록에서 치우고 안내를 남긴다 */
+  async function reportComment(comment: FeedComment, reason: ReportReason): Promise<string | null> {
+    const failed = await actions.reportComment(post, comment, reason);
+    if (failed) return failed;
+    setComments((prev) => (prev ?? []).filter((c) => c.id !== comment.id));
+    setModComment(null);
+    setInfo(NOTICE_REPORTED_COMMENT);
+    return null;
+  }
+
+  /** 댓글 작성자 차단 — 차단한 사람의 다른 댓글도 함께 빠지도록 댓글을 다시 읽는다 */
+  async function blockComment(comment: FeedComment): Promise<string | null> {
+    const failed = await actions.blockComment(post, comment);
+    if (failed) return failed;
+    setModComment(null);
+    setInfo(noticeBlocked(comment.authorName));
+    const res = await actions.comments(post);
+    setComments(res.ok ? res.comments : (prev) => (prev ?? []).filter((c) => c.id !== comment.id));
+    return null;
   }
 
   const canSend = draft.trim().length > 0 && !busy;
@@ -161,7 +205,18 @@ export default function PostCard({
               <Text style={[styles.small, { color: colors.textFaint }]}>삭제</Text>
             </Pressable>
           )
-        ) : null}
+        ) : (
+          <Pressable
+            testID={`post-report-${post.id}`}
+            accessibilityRole="button"
+            accessibilityLabel="이 글 신고하기 또는 작성자 차단하기"
+            accessibilityState={{ expanded: modPost }}
+            hitSlop={10}
+            onPress={() => setModPost((v) => !v)}
+          >
+            <Text style={[styles.small, { color: modPost ? colors.textPrimary : colors.textFaint }]}>신고 · 차단</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* 본문 */}
@@ -169,6 +224,17 @@ export default function PostCard({
         <Text selectable testID={`post-content-${post.id}`} style={styles.content}>
           {post.content}
         </Text>
+      ) : null}
+
+      {modPost && !post.isMine ? (
+        <ModerationPanel
+          prefix={`post-${post.id}`}
+          subject="글"
+          authorName={post.authorName}
+          onReport={reportPost}
+          onBlock={blockPost}
+          onClose={() => setModPost(false)}
+        />
       ) : null}
 
       {/* 액션 */}
@@ -243,11 +309,33 @@ export default function PostCard({
                           <Text style={[styles.small, { color: colors.textGhost }]}>삭제</Text>
                         </Pressable>
                       )
-                    ) : null}
+                    ) : (
+                      <Pressable
+                        testID={`comment-report-${c.id}`}
+                        accessibilityRole="button"
+                        accessibilityLabel="이 댓글 신고하기 또는 작성자 차단하기"
+                        accessibilityState={{ expanded: modComment === c.id }}
+                        hitSlop={10}
+                        onPress={() => setModComment((cur) => (cur === c.id ? null : c.id))}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        <Text style={[styles.small, { color: modComment === c.id ? colors.textPrimary : colors.textGhost }]}>신고 · 차단</Text>
+                      </Pressable>
+                    )}
                   </View>
                   <Text selectable style={styles.commentText}>
                     {c.content}
                   </Text>
+                  {modComment === c.id ? (
+                    <ModerationPanel
+                      prefix={`comment-${c.id}`}
+                      subject="댓글"
+                      authorName={c.authorName}
+                      onReport={(reason) => reportComment(c, reason)}
+                      onBlock={() => blockComment(c)}
+                      onClose={() => setModComment(null)}
+                    />
+                  ) : null}
                 </View>
               </View>
             ))
@@ -282,6 +370,12 @@ export default function PostCard({
             </Pressable>
           </View>
         </View>
+      ) : null}
+
+      {info ? (
+        <Text testID={`post-info-${post.id}`} accessibilityRole="alert" style={styles.info}>
+          {info}
+        </Text>
       ) : null}
 
       {error ? (
@@ -455,6 +549,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 12,
     color: colors.bgPage,
+  },
+  info: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   error: {
     fontFamily: fonts.regular,

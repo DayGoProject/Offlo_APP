@@ -36,6 +36,13 @@ const FAKES = {
       const h = req.headers.get("Authorization");
       if (!h?.startsWith("Bearer ")) throw apiError("인증이 필요합니다.", 401);
       return h.slice(7); // 가짜: 토큰 = uid
+    }
+    // 가입은 토큰의 이메일도 본다(영구 정지된 이메일 차단) — 이 검증의 토큰에는 이메일이 없다. 제재 기록은 비어 있다 (정지 차단은 verify-M9-sanctions-api가 본다)
+    export async function verifyIdTokenFull(req) {
+      return { uid: await verifyIdToken(req), email: undefined };
+    }
+    export function getAdminFirestore() {
+      return { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) };
     }`,
   "@/lib/prisma": `
     const tick = () => new Promise((r) => setImmediate(r)); // 읽고 쓰는 사이에 다른 요청이 끼어들 틈

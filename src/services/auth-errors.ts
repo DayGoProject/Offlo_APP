@@ -51,7 +51,7 @@ export function getAuthErrorMessage(err: unknown): string {
     case "auth/operation-not-allowed":
       return "Google 로그인이 비활성화되어 있습니다. (auth/operation-not-allowed)";
     case "auth/user-disabled":
-      return "사용이 중지된 계정입니다.";
+      return "이용이 정지된 계정입니다. 문의는 개인정보 처리방침에 적힌 이메일로 보내주세요.";
     case "auth/invalid-credential":
       return "Google 인증 정보가 올바르지 않습니다. 다시 시도해주세요. (auth/invalid-credential)";
 

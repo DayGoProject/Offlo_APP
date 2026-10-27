@@ -21,6 +21,7 @@ import type {
   CreateAnalysisInput,
   CreateGoalInput,
   DailySummary,
+  BlockedUser,
   FeedComment,
   FeedPost,
   Goal,
@@ -384,6 +385,25 @@ export function createApiClient(options: ApiClientOptions) {
         request<{ ranking: RankingEntry[]; myRank: RankingEntry | null; minAnalyses: number }>("GET", "/api/ranking", {
           signal,
         }),
+      /**
+       * 글 · 댓글 신고 (M9 · Play UGC 정책) — 신고한 것은 나에게 곧바로 숨겨지고, 서로 다른 3명이면 모두에게서 숨겨진다.
+       * 서버가 같은 사람의 같은 대상 신고를 한 건으로 합쳐서(멱등) 다시 보내도 안전하다.
+       */
+      report: (targetType: "post" | "comment", targetId: string, reason: string) =>
+        request<{ ok: true; alreadyReported: boolean; hidden: boolean }>("POST", "/api/reports", {
+          body: { targetType, targetId, reason },
+          idempotent: true,
+        }),
+      /** 글 · 댓글의 작성자를 차단 — 작성자 id를 클라이언트에 내려주지 않으려고 글 · 댓글로 가리킨다. 이미 차단했어도 같다 (멱등) */
+      blockAuthor: (targetType: "post" | "comment", targetId: string) =>
+        request<{ block: BlockedUser }>("POST", "/api/blocks", { body: { targetType, targetId }, idempotent: true }),
+    },
+
+    /** 내가 차단한 사용자 (M9) */
+    blocks: {
+      list: (signal?: AbortSignal) => request<{ blocks: BlockedUser[] }>("GET", "/api/blocks", { signal }),
+      /** 차단 해제 — 성공하면 204(본문 없음). 이미 풀렸어도 성공한다 */
+      unblock: (userId: string) => request<null>("DELETE", `/api/blocks/${id(userId)}`, { idempotent: true }),
     },
   };
 }

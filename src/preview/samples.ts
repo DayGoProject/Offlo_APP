@@ -14,6 +14,7 @@ import type {
   AnalysisSummary,
   ApiUser,
   Badge,
+  BlockedUser,
   FeedComment,
   FeedPost,
   GardenSnapshot,
@@ -343,6 +344,12 @@ export const RANKING_READY = {
 export const RANKING_OUTSIDE = { ...RANKING_READY, ranking: RANKING_READY.ranking.map((r) => ({ ...r, isMe: false })), myRank: rankEntry(14, "지우", 61, true) };
 
 export const RANKING_EMPTY = { ranking: [] as RankingEntry[], myRank: null, minAnalyses: 3 };
+
+/** 차단한 사용자 둘 — 이름 · id는 지어낸 값이다 */
+export const BLOCKED_USERS: BlockedUser[] = [
+  { userId: "u-blocked-1", name: "도윤", createdAt: new Date(SAMPLE_NOW.getTime() - 2 * 86_400_000).toISOString() },
+  { userId: "u-blocked-2", name: "예린", createdAt: new Date(SAMPLE_NOW.getTime() - 9 * 86_400_000).toISOString() },
+];
 
 /* ── M7 · 배지 ────────────────────────────────────────────────── */
 

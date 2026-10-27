@@ -213,6 +213,13 @@ export interface FeedPost {
   liked: boolean;
 }
 
+/** 내가 차단한 사용자 — `userId`는 차단을 풀 때만 쓴다 (서버가 내 차단 목록에만 내려준다) */
+export interface BlockedUser {
+  userId: string;
+  name: string;
+  createdAt: string | null;
+}
+
 export interface FeedComment {
   id: string;
   content: string;

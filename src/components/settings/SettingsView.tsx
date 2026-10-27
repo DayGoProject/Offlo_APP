@@ -34,13 +34,15 @@ export interface SettingsViewProps {
   onSignOut: () => Promise<void>;
   /** 개인정보 처리방침을 연다 (웹 `/privacy`) — 안 주면 줄을 그리지 않는다 */
   onOpenPrivacy?: () => void;
+  /** 차단한 사용자 화면을 연다 (M9 — 커뮤니티 차단을 풀 수 있는 곳) — 안 주면 줄을 그리지 않는다 */
+  onOpenBlocked?: () => void;
   /** 회원 탈퇴 — 실패하면 문구, 성공하면 null (이어서 로그아웃돼 로그인 화면으로 간다) */
   onDeleteAccount: () => Promise<string | null>;
   /** 리마인더(로컬 예약 알림) 설정 — 안 주면 카드를 그리지 않는다 */
   reminders?: RemindersCardProps;
 }
 
-export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount, reminders, onOpenPrivacy }: SettingsViewProps) {
+export default function SettingsView({ profile, providerIds, loading, error, onRetry, onSaveName, onSignOut, onDeleteAccount, reminders, onOpenPrivacy, onOpenBlocked }: SettingsViewProps) {
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
@@ -102,6 +104,17 @@ export default function SettingsView({ profile, providerIds, loading, error, onR
           </Card>
 
           <Card testID="settings-session" style={styles.menuCard}>
+            {onOpenBlocked ? (
+              <Pressable
+                testID="settings-blocked"
+                accessibilityRole="button"
+                onPress={onOpenBlocked}
+                style={({ pressed }) => [styles.menuRow, styles.menuSplit, styles.menuDivider, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>차단한 사용자</Text>
+                <Text style={styles.menuChevron}>›</Text>
+              </Pressable>
+            ) : null}
             {onOpenPrivacy ? (
               <Pressable
                 testID="settings-privacy"

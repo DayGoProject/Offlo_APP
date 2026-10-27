@@ -183,6 +183,10 @@ const safeRetry = [
   ["garden.selectAnimal", (c) => c.garden.selectAnimal("cat", false)],
   ["notifications.markRead", (c) => c.notifications.markRead("n1")],
   ["notifications.markAllRead", (c) => c.notifications.markAllRead()],
+  ["community.report", (c) => c.community.report("post", "p1", "spam")], // 서버가 같은 사람의 같은 대상 신고를 한 건으로 합친다 (멱등)
+  ["community.blockAuthor", (c) => c.community.blockAuthor("post", "p1")], // 이미 차단했어도 같다
+  ["blocks.unblock", (c) => c.blocks.unblock("u1")], // 이미 풀렸어도 성공한다
+  ["blocks.list", (c) => c.blocks.list()],
 ];
 for (const [name, call] of safeRetry) {
   const s = scenario([offline()]);

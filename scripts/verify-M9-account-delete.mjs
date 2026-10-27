@@ -40,6 +40,24 @@ const FAKES = {
     export function getAdminFirestore() {
       return {
         doc: (path) => ({ path }),
+        // 신고 원본(reports) — 신고자 uid로 찾아 지운다 (deleteReportsBy)
+        collection: (path) => ({
+          where: (field, _op, value) => ({
+            limit: (max) => ({
+              get: async () => {
+                const docs = [...globalThis.__FS.entries()]
+                  .filter(([p, v]) => p.startsWith(path + "/") && v?.[field] === value)
+                  .slice(0, max)
+                  .map(([p]) => ({ id: p.slice(path.length + 1), ref: { path: p } }));
+                return { docs, empty: docs.length === 0 };
+              },
+            }),
+          }),
+        }),
+        batch: () => {
+          const ops = [];
+          return { delete: (ref) => ops.push(ref.path), commit: async () => { globalThis.__LOG.push("reports"); for (const p of ops) globalThis.__FS.delete(p); } };
+        },
         // 실제 recursiveDelete처럼 — 그 문서와 그 아래 모든 하위 컬렉션 문서 (접두어가 아니라 경로 경계로)
         recursiveDelete: async (ref) => {
           globalThis.__LOG.push("firestore");
@@ -98,6 +116,9 @@ const reset = () => {
       [`users/${uid}/notifications/n2`, {}],
       [`users/${uid}/aiUsage/2026-10-27`, {}],
       [`users/${uid}/앞으로생길것/x`, {}],
+      [`users/${uid}/blocks/someone`, {}],
+      [`users/${uid}/reported/post_1`, {}],
+      [`reports/${uid}_post_9`, { reporterUid: uid }],
     ]),
   );
 };
@@ -105,28 +126,28 @@ const del = async (uid, auth = true) => {
   const res = await route.DELETE(new Request("http://localhost/api/users/me", { method: "DELETE", headers: auth ? { Authorization: `Bearer ${uid}` } : {} }));
   return { status: res.status, json: await res.json() };
 };
-const left = (uid) => [...globalThis.__FS.keys()].filter((p) => p === `users/${uid}` || p.startsWith(`users/${uid}/`));
+const left = (uid) => [...globalThis.__FS.keys()].filter((p) => p === `users/${uid}` || p.startsWith(`users/${uid}/`) || p.startsWith(`reports/${uid}_`));
 
 /* ── 1. u1의 모든 데이터가 지워진다 ─────────────────────────── */
 {
   reset();
   const r = await del("u1");
   check(r.status === 200 && r.json.ok === true, "탈퇴 요청이 성공한다", JSON.stringify(r.json));
-  check(left("u1").length === 0, "users/u1 문서와 그 아래 모든 하위 컬렉션이 지워진다 (garden · notifications · aiUsage · 앞으로 생길 것)", left("u1").join(", "));
+  check(left("u1").length === 0, "users/u1 문서와 그 아래 모든 하위 컬렉션(garden · notifications · aiUsage · blocks · reported …)과 u1이 한 신고 원본이 지워진다", left("u1").join(", "));
   check(!globalThis.__DB.has("u1") && !globalThis.__AUTH.has("u1"), "Supabase 사용자와 Firebase Auth 계정도 지워진다");
 }
 
 /* ── 2. 다른 사용자는 그대로 ─────────────────────────────────── */
 {
-  check(left("u2").length === 7 && globalThis.__DB.has("u2") && globalThis.__AUTH.has("u2"), "다른 사용자(u2)의 데이터는 그대로다");
-  check(left("u10").length === 7 && globalThis.__DB.has("u10") && globalThis.__AUTH.has("u10"), "uid가 u1로 시작하는 다른 사용자(u10)도 건드리지 않는다 (접두어가 아니라 경로 경계로 지운다)");
+  check(left("u2").length === 10 && globalThis.__DB.has("u2") && globalThis.__AUTH.has("u2"), "다른 사용자(u2)의 데이터는 그대로다");
+  check(left("u10").length === 10 && globalThis.__DB.has("u10") && globalThis.__AUTH.has("u10"), "uid가 u1로 시작하는 다른 사용자(u10)도 건드리지 않는다 (접두어가 아니라 경로 경계로 지운다)");
 }
 
 /* ── 3. 순서 · 실패 ─────────────────────────────────────────── */
 {
   reset();
   await del("u2");
-  check(globalThis.__LOG.join(">") === "supabase>firestore>auth", "순서 — Supabase → Firestore → Firebase Auth", globalThis.__LOG.join(">"));
+  check(globalThis.__LOG.join(">") === "supabase>firestore>reports>auth", "순서 — Supabase → Firestore(users/{uid} 전체) → 이 사람이 한 신고 원본 → Firebase Auth", globalThis.__LOG.join(">"));
   reset();
   globalThis.__FIRESTORE_FAIL = true;
   const realError = console.error;
@@ -143,7 +164,7 @@ const left = (uid) => [...globalThis.__FS.keys()].filter((p) => p === `users/${u
 {
   reset();
   const noAuth = await del("u1", false);
-  check(noAuth.status === 401 && globalThis.__LOG.length === 0 && globalThis.__FS.size === 21, "토큰이 없으면 401 · 아무것도 지우지 않는다");
+  check(noAuth.status === 401 && globalThis.__LOG.length === 0 && globalThis.__FS.size === 30, "토큰이 없으면 401 · 아무것도 지우지 않는다");
   await del("u1");
   const again = await del("u1");
   check(again.status === 200 && left("u1").length === 0, "이미 지운 계정을 다시 지워도 터지지 않는다");
