@@ -13,7 +13,7 @@
  *     7칸이 요일 자리에 채워지는가 · n / 7 · 최근 결과(오늘/어제 라벨) · 분석 방법 모달 열고 닫기
  *   결과 — 점수 링(72% 채움) · 총 시간 · 라벨 · 카테고리 · 앱별 막대 · 시간대 패턴/안내 · 문제 · 원인 · 전략 · 루틴 · 추천 · 코치 첫 질문
  *   채팅 — 말풍선 좌우 · 보내기 비활성 → 글을 쓰면 활성 · 답 기다리는 점 · 보내기 실패 안내 · 첨부 미리보기
- *   공통 — 폰트(숫자 Familjen · 본문 Pretendard) · 바탕 #040508 · 가로 넘침 없음 · 콘솔 에러 0
+ *   공통 — 폰트(숫자 Familjen · 본문 Pretendard) · 바탕 #060913 · 가로 넘침 없음 · 콘솔 에러 0
  */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync } from "node:fs";
@@ -26,10 +26,10 @@ import { chromium } from "playwright-core";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-const BG = "rgb(4, 5, 8)";
+const BG = "rgb(6, 9, 19)";
 const WHITE = "rgb(255, 255, 255)";
 const BRAND = "rgb(61, 219, 135)";
-const ACCENT_LINE = "rgba(61, 219, 135, 0.14)";
+const ACCENT_LINE = "rgba(61, 219, 135, 0.16)";
 const OFFLINE_TEXT = "인터넷에 연결되어 있지 않거나";
 const TIMEOUT_TEXT = "서버 응답이 너무 늦어";
 
@@ -121,7 +121,7 @@ async function common(name, page, errors, rootTestId) {
     };
   }, rootTestId);
   check(layout.doc && layout.inner, `${name} · 가로 넘침 없음`);
-  check(layout.bg === BG, `${name} · 바탕 #040508`, layout.bg);
+  check(layout.bg === BG, `${name} · 바탕 #060913`, layout.bg);
   check(errors.length === 0, `${name} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
 }
 

@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
   },
   cardHighlight: {
-    borderColor: "rgba(61, 219, 135, 0.45)",
+    borderColor: colors.brandBar,
   },
   head: {
     flexDirection: "row",

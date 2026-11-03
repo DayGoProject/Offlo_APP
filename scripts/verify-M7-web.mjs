@@ -24,7 +24,7 @@ import { chromium } from "playwright-core";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-const BG = "rgb(4, 5, 8)";
+const BG = "rgb(6, 9, 19)";
 const OFFLINE_TEXT = "인터넷에 연결되어 있지 않거나";
 
 const failures = [];
@@ -112,7 +112,7 @@ async function commonChecks(name, page, errors, scrollTestId) {
     };
   }, scrollTestId);
   check(layout.doc && layout.inner, `${name} · 가로 넘침 없음`);
-  check(layout.bg === BG, `${name} · 바탕 #040508`, layout.bg);
+  check(layout.bg === BG, `${name} · 바탕 #060913`, layout.bg);
   check(errors.length === 0, `${name} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
 }
 
@@ -190,7 +190,7 @@ try {
     await page.getByTestId("goal-form").waitFor({ state: "visible" });
     check((await page.getByTestId("goal-start").innerText()).includes("2026.09.17 (목)") && (await page.getByTestId("goal-end").innerText()).includes("2026.09.24 (목)"), "기본값 — 오늘(KST 9/17)부터 일주일 (9/24)");
     check((await page.getByTestId("goal-minutes").inputValue()) === "60" && (await text(page, "goal-minutes-hint")) === "현재 설정: 하루 1시간 이하", "기본 하루 목표 60분 — \"하루 1시간 이하\"");
-    check((await page.getByTestId("goal-preset-60").getAttribute("aria-selected")) === "true" || (await page.getByTestId("goal-preset-60").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(61, 219, 135, 0.13)", "빠른 선택 60분이 켜져 있다");
+    check((await page.getByTestId("goal-preset-60").getAttribute("aria-selected")) === "true" || (await page.getByTestId("goal-preset-60").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(61, 219, 135, 0.14)", "빠른 선택 60분이 켜져 있다");
     await page.screenshot({ path: join(OUT_DIR, "M7-goal-form.png") });
 
     // 제목 검증
@@ -539,14 +539,14 @@ try {
     // 알림 링크로 강조
     const hi = await open("/preview/community?state=ready&notice=0&highlight=p-03", "community");
     await hi.page.getByTestId("post-p-03").waitFor({ state: "visible" });
-    check((await hi.page.getByTestId("post-p-03").evaluate((el) => getComputedStyle(el).borderTopColor)) === "rgba(61, 219, 135, 0.45)" && (await hi.page.getByTestId("post-p-02").evaluate((el) => getComputedStyle(el).borderTopColor)) !== "rgba(61, 219, 135, 0.45)", "알림 링크(?post=p-03) — 그 글만 녹색 테두리");
+    check((await hi.page.getByTestId("post-p-03").evaluate((el) => getComputedStyle(el).borderTopColor)) === "rgba(61, 219, 135, 0.55)" && (await hi.page.getByTestId("post-p-02").evaluate((el) => getComputedStyle(el).borderTopColor)) !== "rgba(61, 219, 135, 0.55)", "알림 링크(?post=p-03) — 그 글만 녹색 테두리");
     await hi.page.waitForTimeout(1500); // 목록이 그려진 뒤 그 글 자리로 스크롤한다
     const inView = await hi.page.getByTestId("post-p-03").evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; });
     check(inView, "알림 링크 — 그 글 자리로 스크롤돼 화면 안에 있다");
     await hi.page.close();
     const miss = await open("/preview/community?state=ready&notice=0&highlight=p-24", "community");
     await miss.page.getByTestId("post-p-01").waitFor({ state: "visible" });
-    check((await miss.page.locator('[data-testid^="post-p-"]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).borderTopColor === "rgba(61, 219, 135, 0.45)").length)) === 0, "알림 링크의 글이 첫 페이지에 없으면 강조하지 않는다 (수용된 한계)");
+    check((await miss.page.locator('[data-testid^="post-p-"]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).borderTopColor === "rgba(61, 219, 135, 0.55)").length)) === 0, "알림 링크의 글이 첫 페이지에 없으면 강조하지 않는다 (수용된 한계)");
     await miss.page.close();
 
     // 다음 페이지 실패 — 읽은 글은 남기고 아래에 다시 시도
@@ -579,7 +579,7 @@ try {
     const a = await open("/preview/community?state=ranking", "community");
     await a.page.getByTestId("ranking-rows").waitFor({ state: "visible" });
     check((await rows(a.page)) === 10 && (await text(a.page, "rank-4")).includes("지우 (나)") && (await text(a.page, "rank-1")).includes("하준") && (await text(a.page, "rank-1")).includes("91"), "랭킹 — Top 10 · 1위 하준 91 · 내가 4위(나)");
-    check((await a.page.getByTestId("rank-4").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(61, 219, 135, 0.13)" && (await a.page.getByTestId("rank-5").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(0, 0, 0, 0)", "내 줄만 브랜드 그린 바탕");
+    check((await a.page.getByTestId("rank-4").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(61, 219, 135, 0.14)" && (await a.page.getByTestId("rank-5").evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgba(0, 0, 0, 0)", "내 줄만 브랜드 그린 바탕");
     check((await a.page.locator("body").innerText()).includes("⋯") === false, "Top 10 안에 내가 있으면 아래에 또 보이지 않는다");
     check((await a.page.getByTestId("rank-4").getAttribute("aria-label")) === "4위 지우 (나), 평균 83점, 분석 6회" || (await a.page.getByTestId("rank-4").getAttribute("aria-label"))?.startsWith("4위 지우 (나), 평균 83점"), "랭킹 줄 접근성 라벨", await a.page.getByTestId("rank-4").getAttribute("aria-label"));
     check((await count(a.page, "composer")) === 0 && (await a.page.locator("body").innerText()).includes("분석 3회 미만은 순위에서 제외됩니다."), "랭킹 모드 — 글쓰기는 없고 안내 문구가 있다");

@@ -30,7 +30,8 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TABS = ["홈", "분석", "정원", "커뮤니티", "더보기"];
+// UIUX 실험 A안 — 하단 탭 4개(+ 가운데 올리기 버튼). 더보기는 스택 화면(`offlo://more` · 각 탭 헤더의 프로필 버튼)
+const TABS = ["홈", "분석", "정원", "커뮤니티"];
 const TEXT_LOGIN = "Google로 계속하기";
 
 const failures = [];
@@ -97,6 +98,7 @@ async function dismissDevMenu() {
 async function launchApp() {
   adb(["shell", "am", "force-stop", PACKAGE]);
   await wait(1000);
+  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]); // 길이 중간에 끊긴 적이 있다 — 앱을 다시 띄울 때마다 다시 잇는다 (같은 걸 또 이어도 무해)
   adb(["logcat", "-c"]);
   adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", DEV_CLIENT_URL, "-p", PACKAGE]);
   for (let i = 0; i < 60; i++) {
@@ -104,6 +106,9 @@ async function launchApp() {
     if ((adb(["logcat", "-d", "-s", "ReactNativeJS"]).stdout ?? "").includes('Running "main"')) {
       await wait(2000);
       await dismissDevMenu();
+      // 홈의 동물이 계속 움직이면 uiautomator 덤프가 실패한다 — 정지 모드 딥링크로 같은 홈을 다시 연다 (로그인 전이면 로그인 화면이 그대로 뜬다)
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://?still=1", "-p", PACKAGE]);
+      await wait(2500);
       return true;
     }
   }
@@ -192,8 +197,6 @@ function textInside(xml, id, label) {
   }
   return null;
 }
-/** 더보기 탭 배지 — `tab-more` 영역 안에 있는 글자 */
-const tabBadge = (xml, label) => textInside(xml, "tab-more", label);
 /** 종 배지 — 숫자 글자가 종 영역 안에 있는가 */
 const bellBadge = (xml, label) => (has(xml, "notification-bell-badge") ? textInside(xml, "notification-bell", label) : null);
 const badgeLabel = (n) => (n <= 0 ? "" : n > 9 ? "9+" : String(n));
@@ -205,7 +208,7 @@ try {
     check(false, "로그인 상태", "먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요");
     throw new Error("not signed in");
   }
-  check(tabs.ok, "하단 탭 5개");
+  check(tabs.ok, "하단 탭 4개");
 
   /* ── 1 · 2. 홈의 종 — 구독이 열려 숫자가 정해질 때까지 ──────── */
   await wait(4000); // 로그인 직후 구독이 첫 스냅숏을 받을 시간
@@ -227,9 +230,8 @@ try {
   check(more.ok, "더보기에 \"알림\" 줄이 있다");
   const menuCount = Number(nodeOf(more.xml, "menu-notifications-count")?.text ?? 0);
   check(menuCount === bellUnread, "더보기 \"알림\" 줄 숫자 = 홈 종 숫자 (한 번 구독을 나눠 쓴다)", `${menuCount} / ${bellUnread}`);
-  const badge = tabBadge(more.xml, badgeLabel(bellUnread));
-  if (bellUnread > 0) check(badge === badgeLabel(bellUnread), `더보기 탭 배지 \"${badgeLabel(bellUnread)}\"`, String(badge));
-  else check(tabBadge(more.xml, "0") === null, "안 읽은 알림이 없으면 더보기 탭에 배지가 없다");
+  // 옛 "더보기 탭 배지"는 없다 — A안에서 더보기가 탭이 아니라 스택 화면이라 안 읽은 수는 홈의 종과 이 줄에만 나온다
+  check(!has(more.xml, "tab-more"), "하단 탭바에 더보기 탭이 없다 (홈 헤더의 프로필 버튼으로 들어온다)");
   shot("M8-android-more.png");
 
   /* ── 3. 알림 화면 ────────────────────────────────────────── */

@@ -21,7 +21,7 @@
  *     모아서 한 번에 전송 · 전송 실패(서버 값으로 되돌림 · 재전송 안 함) · 알 · 굶주림 · 동작 줄이기에서도 쓰다듬기
  *     · 장면 이벤트 햅틱(밥 success · 회복 recover · 부화 · 성장 grow · 정지 화면에서는 없음)
  *   - **살아 있는가** — 동물이 움직이는 프레임이 실제로 달라지는가(정지 화면 금지) · 정지 모드 · 시스템 "동작 줄이기"에서는 멈추는가
- *   - 식물 썸네일(AVIF) 로드 · 숫자는 Familjen Grotesk · 바탕 #040508
+ *   - 식물 썸네일(AVIF) 로드 · 숫자는 Familjen Grotesk · 바탕 #060913
  *   - 빈 상태(미선택) · 스켈레톤 · 한국어 에러 + 다시 시도 · 가로 넘침 없음 · 콘솔 에러 0
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -40,10 +40,10 @@ import { PNG } from "pngjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-const BG = "rgb(4, 5, 8)";
+const BG = "rgb(6, 9, 19)";
 const BRAND = "rgb(61, 219, 135)";
-const TEXT_FAINT = "rgba(216, 216, 216, 0.34)";
-const ACCENT_SOFT = "rgba(61, 219, 135, 0.13)";
+const TEXT_FAINT = "rgba(227, 232, 245, 0.36)";
+const ACCENT_SOFT = "rgba(61, 219, 135, 0.14)";
 const OFFLINE_TEXT = "인터넷에 연결되어 있지 않거나";
 
 const failures = [];
@@ -135,7 +135,7 @@ async function commonChecks(name, page, errors, scrollTestId) {
     };
   }, scrollTestId);
   check(layout.doc && layout.inner, `${name} · 가로 넘침 없음`);
-  check(layout.bg === BG, `${name} · 바탕 #040508`, layout.bg);
+  check(layout.bg === BG, `${name} · 바탕 #060913`, layout.bg);
   check(errors.length === 0, `${name} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
 }
 
@@ -243,7 +243,7 @@ try {
     const numFont = await page.getByText("12 / 21").first().evaluate((el) => getComputedStyle(el).fontFamily);
     check(numFont.includes("FamiljenGrotesk"), "진행 숫자는 Familjen Grotesk", numFont);
     const titleFont = await page.getByText("오늘 밥을 배부르게 먹었어요").first().evaluate((el) => getComputedStyle(el).fontFamily);
-    check(titleFont.includes("Pretendard-Regular"), "헤드라인은 Pretendard 400 (굵게 하지 않는다)", titleFont);
+    check(titleFont.includes("Pretendard-SemiBold"), "헤드라인은 Pretendard 600 (UIUX 실험 A안 — 큰 제목은 굵게)", titleFont);
 
     await commonChecks("정원(배부름)", page, errors, "garden");
     await shots(page, "fed", "garden");
@@ -327,6 +327,79 @@ try {
     await page.close();
   }
 
+  /* ── 바닥 시트 (UIUX 실험 A안) — 방이 화면 폭을 꽉 채우고 카드는 끌어 올리는 시트에 담긴다 ─────────────── */
+  {
+    const { page, errors } = await open("/preview/garden?state=fed&still=1", "garden");
+    const vh = page.viewportSize().height;
+    const box = (id) => page.getByTestId(id).first().boundingBox();
+    const isOpen = async () => (await page.getByTestId("garden-sheet").getAttribute("aria-expanded")) === "true";
+    const stage = await box("pet-stage");
+    check(Boolean(stage) && stage.y === 0 && Math.round(stage.width) === 390, "시트 — 방이 화면 폭을 꽉 채워 맨 위(상태바 밑)에서 시작한다", JSON.stringify(stage));
+    const closed = await box("garden-sheet");
+    check(!(await isOpen()) && Math.abs(closed.y - (stage.height - 16)) <= 2, "시트 — 처음엔 접혀 있고 윗선이 방 바닥(−16)에 걸린다", `시트 y ${Math.round(closed.y)} / 방 높이 ${Math.round(stage.height)}`);
+    const headline = await box("garden-headline");
+    check(Boolean(headline) && headline.y + headline.height <= vh, "시트 — 접힌 채로 제목이 화면 안에 보인다");
+    const peek = await box("pet-condition");
+    check(Boolean(peek) && peek.y < vh - 20, "시트 — 첫 카드의 윗부분이 엿보인다 (끌어 올릴 수 있다는 단서)", peek ? `카드 y ${Math.round(peek.y)} / 화면 ${vh}` : "");
+
+    // 손잡이를 누르면 펼친다
+    await page.getByTestId("garden-sheet-handle").click();
+    await page.waitForTimeout(600);
+    const opened = await box("garden-sheet");
+    check((await isOpen()) && Math.abs(opened.y - 64) <= 2, "시트 — 손잡이를 누르면 펼쳐진다 (윗선 = 상태바 + 버튼 줄)", `시트 y ${Math.round(opened.y)}`);
+    check(await page.getByTestId("garden-sheet-dim").isVisible(), "시트 — 펼치면 위쪽 방 조각이 어두워지고 누를 수 있다");
+    // 펼치면 아래 카드까지 스크롤해 볼 수 있다
+    await page.getByTestId("animal-change").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const change = await box("animal-change");
+    check(Boolean(change) && change.y + change.height <= vh, "시트 — 펼치면 맨 아래 \"동물 변경하기\"까지 스크롤해 닿는다", change ? `하단 ${Math.round(change.y + change.height)} / ${vh}` : "");
+    // 어두운 방 조각을 누르면 접힌다
+    await page.getByTestId("garden-sheet-dim").click({ position: { x: 150, y: 20 } });
+    await page.waitForTimeout(600);
+    check(!(await isOpen()), "시트 — 위쪽 방 조각을 누르면 접힌다");
+
+    // 끌어 올리기 · 내리기
+    const grip = await box("garden-sheet-handle");
+    const gx = grip.x + grip.width / 2;
+    const gy = grip.y + 24;
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    await page.mouse.move(gx, gy - 140, { steps: 8 });
+    await page.waitForTimeout(120);
+    const mid = await box("garden-sheet");
+    check(mid.y < closed.y - 60 && mid.y > 64, "시트 — 끄는 동안 손가락을 따라 움직인다 (접힘과 펼침 사이)", `시트 y ${Math.round(mid.y)}`);
+    await page.mouse.move(gx, gy - 420, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(700);
+    check(await isOpen(), "시트 — 위로 끌었다 놓으면 펼친 채로 붙는다");
+    const grip2 = await box("garden-sheet-handle");
+    await page.mouse.move(grip2.x + grip2.width / 2, grip2.y + 24);
+    await page.mouse.down();
+    await page.mouse.move(grip2.x + grip2.width / 2, grip2.y + 24 + 420, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(700);
+    check(!(await isOpen()), "시트 — 아래로 끌었다 놓으면 접힌 채로 붙는다");
+    // 접힌 채 방 위의 쓰다듬기 · 상태 칩은 그대로 눌린다 (시트가 덮지 않는 구역)
+    check(await page.getByTestId("pet-condition-chip").isVisible(), "시트 — 접힌 채 방 위의 상태 칩이 보인다");
+    await commonChecks("정원(시트)", page, errors, "garden");
+    await page.screenshot({ path: join(OUT_DIR, "M6-garden-sheet-closed.png") });
+    await page.close();
+
+    // 펼친 채로 시작 · 출출함 — 밥 주기 버튼이 펼친 시트 맨 위 카드에 있다
+    const o = await open("/preview/garden?state=peckish&still=1&sheet=open", "garden");
+    check((await o.page.getByTestId("garden-sheet").getAttribute("aria-expanded")) === "true", "시트 — sheet=open이면 펼친 채로 시작한다");
+    const feed = await o.page.getByTestId("garden-feed").boundingBox();
+    check(Boolean(feed) && feed.y + feed.height <= vh, "시트 — 펼치면 밥 주기 버튼이 화면 안에 보인다");
+    await o.page.screenshot({ path: join(OUT_DIR, "M6-garden-sheet-open.png") });
+    await o.page.close();
+
+    // 접힌 채로도 첫 카드의 밥 주기 버튼이 누를 수 있게 보인다 (엄지 영역)
+    const f = await open("/preview/garden?state=peckish&still=1", "garden");
+    const feed2 = await f.page.getByTestId("garden-feed").boundingBox();
+    check(Boolean(feed2) && feed2.y + feed2.height <= vh, "시트 — 접힌 채로도 밥 주기 버튼이 화면 안에 보인다", feed2 ? `하단 ${Math.round(feed2.y + feed2.height)} / ${vh}` : "");
+    await f.page.close();
+  }
+
   /* ── 동물 변경 흐름 ────────────────────────────────────── */
   {
     const { page, errors } = await open("/preview/garden?state=fed", "garden");
@@ -350,7 +423,7 @@ try {
     // testID는 버튼 상자에 붙고 글자 색은 안쪽 텍스트에 있다
     const confirmLabel = await page.getByTestId("change-confirm").getByText("변경하기").evaluate((el) => getComputedStyle(el).color);
     const confirmBg = await page.getByTestId("change-confirm").evaluate((el) => getComputedStyle(el).backgroundColor);
-    check(confirmLabel === "rgb(255, 86, 86)" && confirmBg === "rgba(255, 86, 86, 0.1)", "변경하기는 danger 알약", `${confirmLabel} · ${confirmBg}`);
+    check(confirmLabel === "rgb(255, 92, 108)" && confirmBg === "rgba(255, 92, 108, 0.1)", "변경하기는 danger 알약", `${confirmLabel} · ${confirmBg}`);
     // 모달은 페이드 인 — 끝난 뒤 찍어야 카드가 불투명하게 보인다
     await page.waitForTimeout(600);
     await page.screenshot({ path: join(OUT_DIR, "M6-garden-change-modal.png") });

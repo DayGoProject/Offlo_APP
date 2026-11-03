@@ -24,6 +24,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Card from "@/components/app/Card";
+import CircleButton from "@/components/app/CircleButton";
+import { ProfileIcon } from "@/components/app/HeaderIcons";
 import ErrorNotice from "@/components/app/ErrorNotice";
 import PageHeader from "@/components/app/PageHeader";
 import Segmented from "@/components/app/Segmented";
@@ -40,6 +42,8 @@ import { colors, fonts, radius } from "@/theme";
 export type CommunityMode = "feed" | "ranking";
 
 export interface CommunityViewProps {
+  /** 헤더의 프로필 버튼 (더보기) — 안 주면 그리지 않는다 */
+  onOpenProfile?: () => void;
   /** 기준 시각(ms) — 상대 시간 */
   now: number;
   /** 글쓰기 아바타에 넣는 내 이름 */
@@ -154,6 +158,14 @@ export default function CommunityView(props: CommunityViewProps) {
       <PageHeader
         eyebrow={feed ? (posts ? `글 ${posts.length}개${hasMore ? "+" : ""}` : "불러오는 중") : "최근 7일"}
         title="커뮤니티"
+        back={false}
+        trailing={
+          props.onOpenProfile ? (
+            <CircleButton testID="open-profile" label="더보기" onPress={props.onOpenProfile}>
+              <ProfileIcon color={colors.textPrimary} size={20} />
+            </CircleButton>
+          ) : undefined
+        }
         actions={
           <Segmented
             value={mode}

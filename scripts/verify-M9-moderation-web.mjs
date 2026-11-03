@@ -26,7 +26,7 @@ import { chromium } from "playwright-core";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-const BG = "rgb(4, 5, 8)";
+const BG = "rgb(6, 9, 19)";
 const OFFLINE_TEXT = "인터넷에 연결되어 있지 않거나";
 
 const failures = [];
@@ -114,7 +114,7 @@ async function commonChecks(name, page, errors, scrollTestId) {
     };
   }, scrollTestId);
   check(layout.doc && layout.inner, `${name} · 가로 넘침 없음`);
-  check(layout.bg === BG, `${name} · 바탕 #040508`, layout.bg);
+  check(layout.bg === BG, `${name} · 바탕 #060913`, layout.bg);
   check(errors.length === 0, `${name} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
 }
 

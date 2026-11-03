@@ -17,7 +17,19 @@ const BASIC = [
 ] as const;
 
 const SCREENS: { path: string; title: string; states: readonly { state: string; label: string }[] }[] = [
-  { path: "/preview/dashboard", title: "대시보드 (홈 탭)", states: BASIC },
+  {
+    path: "/preview/home",
+    title: "홈 — 몰입형 스테이지 (UIUX 실험 A안)",
+    states: [
+      { state: "fed", label: "배부름 — 오늘 분석함 (결과 보기)" },
+      { state: "peckish", label: "출출함 — 오늘 분석하기" },
+      { state: "egg", label: "알 — 첫 분석으로 부화" },
+      { state: "none", label: "동물 미선택" },
+      { state: "loading", label: "불러오는 중" },
+      { state: "error", label: "불러오기 실패" },
+    ],
+  },
+  { path: "/preview/dashboard", title: "대시보드 (옛 홈 탭)", states: BASIC },
   { path: "/preview/history", title: "분석 기록", states: BASIC },
   {
     path: "/preview/analysis",

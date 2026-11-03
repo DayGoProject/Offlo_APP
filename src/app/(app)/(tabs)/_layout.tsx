@@ -1,68 +1,9 @@
 /**
- * 하단 탭 5개 — 홈 · 분석 · 정원 · 커뮤니티 · 더보기.
- *
- * 웹 사이드바 7개를 5개로 줄였다: 기록 · 목표 · 배지 · 설정은 "더보기"로 묶는다 (탭바 상한 5개).
- * 활성 탭은 웹 사이드바처럼 브랜드 그린.
+ * 하단 탭 — 홈 · 분석 · [+] · 정원 · 커뮤니티 (UIUX 실험 A안 · 브랜치 `exp/uiux-a-stage`).
+ * 구성은 `StageTabsLayout`에 있다 (로그인 없이 눌러 보는 미리보기 `/preview/stage`와 같은 코드).
  */
-import { Tabs } from "expo-router/js-tabs";
-
-import { AnalysisIcon, CommunityIcon, GardenIcon, HomeIcon, MoreIcon } from "@/components/app/TabIcons";
-import { useNotifications } from "@/hooks/notifications-context";
-import { badgeLabel } from "@/logic/notifications";
-import { colors, fonts } from "@/theme";
+import StageTabsLayout from "@/components/app/StageTabsLayout";
 
 export default function TabsLayout() {
-  // 안 읽은 알림이 있으면 알림이 들어 있는 "더보기" 탭에 숫자 배지를 붙인다
-  const { unread } = useNotifications();
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: { backgroundColor: colors.bgPage },
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.bgNav,
-          borderTopColor: colors.borderCard,
-          borderTopWidth: 1,
-        },
-        tabBarLabelStyle: { fontFamily: fonts.regular, fontSize: 11 },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{ title: "홈", tabBarButtonTestID: "tab-home", tabBarIcon: ({ color }) => <HomeIcon color={color} /> }}
-      />
-      <Tabs.Screen
-        name="analysis"
-        options={{
-          title: "분석",
-          tabBarButtonTestID: "tab-analysis",
-          tabBarIcon: ({ color }) => <AnalysisIcon color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="garden"
-        options={{ title: "정원", tabBarButtonTestID: "tab-garden", tabBarIcon: ({ color }) => <GardenIcon color={color} /> }}
-      />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: "커뮤니티",
-          tabBarButtonTestID: "tab-community",
-          tabBarIcon: ({ color }) => <CommunityIcon color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "더보기",
-          tabBarButtonTestID: "tab-more",
-          tabBarIcon: ({ color }) => <MoreIcon color={color} />,
-          tabBarBadge: unread > 0 ? badgeLabel(unread) : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.brand, color: colors.bgPage, fontFamily: fonts.num, fontSize: 10 },
-        }}
-      />
-    </Tabs>
-  );
+  return <StageTabsLayout analysisHref="/analysis" />;
 }

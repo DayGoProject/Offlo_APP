@@ -107,6 +107,7 @@ export default function GardenTab() {
       onRetry={reload}
       onSelectAnimal={selectAnimal}
       onFeed={() => router.navigate("/analysis")}
+      onOpenProfile={() => router.push("/more")}
       animate={still !== "1"}
       active={focused}
       affection={garden.data?.animal?.type ? affection : null}

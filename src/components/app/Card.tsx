@@ -1,5 +1,5 @@
 /**
- * 카드 — `--bg-card` + 1px `--border-card` + 라운드 12px. 그림자는 쓰지 않는다 (다크에서 보이지 않는다).
+ * 카드 — 면(`bgCard`) + 1px 옅은 테두리 + 라운드 20px (UIUX 실험 A안). 그림자 대신 면의 밝기 차이로 깊이를 만든다.
  * `CardHeader`는 카드 안의 제목 줄 (제목 · 우측 보조 텍스트).
  */
 import type { ReactNode } from "react";
@@ -64,8 +64,8 @@ const styles = StyleSheet.create({
     borderColor: colors.borderCard,
     borderRadius: radius.card,
     paddingHorizontal: 20,
-    paddingVertical: 22,
-    gap: 20,
+    paddingVertical: 20,
+    gap: 16,
   },
   header: {
     flexDirection: "row",

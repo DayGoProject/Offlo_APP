@@ -8,7 +8,7 @@
  *   1. 아이폰 뷰포트(390×844)에서 화면이 뜨는가
  *   2. 브랜드 색(#3DDB87)과 폰트(Pretendard 400·600 + Familjen Grotesk)가 실제로 적용됐는가
  *   3. 가로 넘침이 없는가
- *   4. 다크 단일 테마 — 바탕 #040508, 기기가 라이트 모드여도 그대로인가 (M4에서 라이트 테마 제거)
+ *   4. 다크 단일 테마 — 바탕 #060913, 기기가 라이트 모드여도 그대로인가 (M4에서 라이트 테마 제거)
  *   5. 콘솔 에러 · 미처리 rejection이 0인가
  *
  * iOS 시뮬레이터를 쓸 수 없는 환경이라(Windows) 이 층이 가장 빠른 회귀 그물이다.
@@ -29,7 +29,7 @@ const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
 const SCREEN_URL = `${URL}/foundation`;
 const BRAND_RGB = "rgb(61, 219, 135)";
 // 웹 14단계 팔레트 — 순흑이 아닌 살짝 푸른 검정
-const DARK_BG = "rgb(4, 5, 8)";
+const DARK_BG = "rgb(6, 9, 19)";
 const FONT_FACES = ["Pretendard-Regular", "Pretendard-SemiBold", "FamiljenGrotesk"];
 
 const failures = [];
@@ -159,7 +159,7 @@ try {
     p.evaluate(() => getComputedStyle(document.querySelector('[data-testid="screen"]')).backgroundColor);
 
   const darkBg = await screenBg(page);
-  check(darkBg === DARK_BG, "바탕 = #040508", darkBg);
+  check(darkBg === DARK_BG, "바탕 = #060913", darkBg);
   await page.screenshot({ path: join(OUT_DIR, "M1-dark.png") });
 
   const lightDevice = await browser.newPage({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
