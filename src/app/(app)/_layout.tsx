@@ -19,6 +19,7 @@ export default function AppLayout() {
           <Stack.Screen name="history" />
           <Stack.Screen name="goals" />
           <Stack.Screen name="badges" />
+          <Stack.Screen name="more" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="blocked" />
           <Stack.Screen name="notifications" />

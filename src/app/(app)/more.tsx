@@ -35,7 +35,7 @@ export default function MoreTab() {
   }
 
   return (
-    <Screen testID="more-tab" underTabBar onRefresh={profile.reload} refreshing={profile.loading && profile.data !== null}>
+    <Screen testID="more-tab" onRefresh={profile.reload} refreshing={profile.loading && profile.data !== null}>
       <PageHeader eyebrow={user?.email ?? undefined} title="더보기" />
 
       <Card testID="account-card">

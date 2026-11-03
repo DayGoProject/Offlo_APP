@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
   },
   cell: {
     width: "100%",
-    height: 38,
-    borderRadius: 8,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.scoreTrack,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimarySoft,
   },
   locked: {
-    height: 40,
+    height: 44,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",

@@ -1,12 +1,18 @@
 /**
- * 화면 헤더 — 눈썹(점 + 라벨) · 제목 · 액션. 웹 `components/app/PageHeader.tsx` 이식.
+ * 화면 헤더 — (뒤로 버튼) · 눈썹 · 큰 제목 · 오른쪽 둥근 버튼 · 제목 아래 액션 (UIUX 실험 A안).
  *
- * 제목은 **굵게 하지 않는다**(weight 400) — 거대하되 가볍게가 웹의 타이포 규칙이다.
- * 위계는 굵기가 아니라 크기와 색으로 만든다. 모바일 크기 26px.
+ * 제목은 28px 굵게(600) — 스킬의 위계(크기 · 굵기 2가지 · 투명도). 글자 크기는 앱 전체에서 28 / 17 / 15 / 13 / 11 안에서만 쓴다.
+ * `trailing`(= 옛 `corner`)은 제목 줄 오른쪽에 놓이는 둥근 버튼들 (프로필 · 기록 · 알림).
+ *
+ * **뒤로 버튼은 스택 화면(목표 · 배지 · 설정 · 기록 …)에서 자동으로 붙는다** — 탭 화면(`(tabs)`)이 아니면 보인다.
+ * 탭 화면의 View가 미리보기처럼 `(tabs)` 밖에서 그려질 때는 `back={false}`로 끈다.
  */
 import type { ReactNode } from "react";
+import { useRouter, useSegments } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
+import { BackIcon } from "@/components/app/Icons";
+import CircleButton from "@/components/app/CircleButton";
 import { colors, em, fonts } from "@/theme";
 
 export default function PageHeader({
@@ -14,26 +20,46 @@ export default function PageHeader({
   title,
   actions,
   corner,
+  trailing,
+  back,
 }: {
   eyebrow?: string;
   title: string;
-  /** 제목 아래 한 줄에 놓인다 (모바일은 옆에 둘 폭이 없다) */
+  /** 제목 아래 한 줄에 놓인다 */
   actions?: ReactNode;
-  /** 오른쪽 위 모서리에 놓인다 — 알림 종처럼 작은 아이콘 하나 (제목이 그 밑으로 들어가지 않게 오른쪽을 비운다) */
+  /** 제목 줄 오른쪽 — 둥근 버튼들 (`trailing`과 같다 · 옛 이름) */
   corner?: ReactNode;
+  trailing?: ReactNode;
+  /** 뒤로 버튼 — 안 주면 탭 화면이 아닐 때 자동으로 보인다 */
+  back?: boolean;
 }) {
+  const router = useRouter();
+  const segments = useSegments() as string[];
+  const showBack = back ?? !segments.includes("(tabs)");
+  const right = trailing ?? corner;
+
   return (
     <View style={styles.header}>
-      {corner ? <View style={styles.corner}>{corner}</View> : null}
-      {eyebrow ? (
-        <View style={styles.eyebrow}>
-          <View style={styles.dot} />
-          <Text style={styles.eyebrowText}>{eyebrow}</Text>
+      {showBack ? (
+        <View style={styles.backRow}>
+          <CircleButton testID="header-back" label="뒤로" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
+            <BackIcon color={colors.textPrimary} size={20} />
+          </CircleButton>
         </View>
       ) : null}
-      <Text accessibilityRole="header" style={[styles.title, corner ? styles.titleWithCorner : null]}>
-        {title}
-      </Text>
+      <View style={styles.row}>
+        <View style={styles.titles}>
+          {eyebrow ? (
+            <Text numberOfLines={1} style={styles.eyebrowText}>
+              {eyebrow}
+            </Text>
+          ) : null}
+          <Text accessibilityRole="header" style={styles.title}>
+            {title}
+          </Text>
+        </View>
+        {right ? <View style={styles.right}>{right}</View> : null}
+      </View>
       {actions ? <View style={styles.actions}>{actions}</View> : null}
     </View>
   );
@@ -41,47 +67,44 @@ export default function PageHeader({
 
 const styles = StyleSheet.create({
   header: {
-    gap: 7,
+    gap: 12,
   },
-  corner: {
-    position: "absolute",
-    right: 0,
-    top: -10,
-    zIndex: 1,
+  backRow: {
+    flexDirection: "row",
+    marginLeft: -2,
   },
-  titleWithCorner: {
-    paddingRight: 52,
-  },
-  eyebrow: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
+    justifyContent: "space-between",
+    gap: 12,
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.brand,
+  titles: {
+    flex: 1,
+    gap: 4,
+  },
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   eyebrowText: {
-    fontFamily: fonts.semibold,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: em(11, 0.14),
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.textMuted,
   },
   title: {
-    fontFamily: fonts.regular,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: em(26, -0.035),
+    fontFamily: fonts.semibold,
+    fontSize: 28,
+    lineHeight: 36,
+    letterSpacing: em(28, -0.025),
     color: colors.textPrimary,
   },
   actions: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
-    marginTop: 9,
+    gap: 8,
   },
 });

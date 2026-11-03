@@ -15,7 +15,7 @@
  *   1. 콜드 스타트 — 시간 · 로그인 상태가 그대로 · 하단 탭 5개
  *   2. 개발 흔적 없음 — 개발 도구("Tools") · 개발자 메뉴 문구 · 빨간 오류 상자가 없다
  *   3. 권한 — 알림 · 부팅 뒤 재예약 · 진동 · 인터넷만 (SYSTEM_ALERT_WINDOW · 위험 권한 · launcher 배지 권한 없음)
- *   4. 화면 — 홈 · 분석 · 정원(3D) · 커뮤니티 · 더보기 · 기록 · 목표 · 배지 · 설정(리마인더 카드) · 알림이 실서버 데이터로 열린다
+ *   4. 화면 — 홈 · 분석 · 정원(3D) · 커뮤니티 · 더보기(스택) · 기록 · 목표 · 배지 · 설정(리마인더 카드) · 알림이 실서버 데이터로 열린다
  *   5. 개발 전용 화면 차단 — `offlo://preview` · `offlo://preview/dashboard` · `offlo://foundation`이 열리지 않는다
  *   6. 앱을 껐다 켜도 로그인이 남는다 · 크래시 · JS 에러 · R8 관련 오류(ClassNotFound · NoSuchMethod · UnsatisfiedLink) 0
  */
@@ -31,7 +31,8 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TABS = ["홈", "분석", "정원", "커뮤니티", "더보기"];
+// UIUX 실험 A안 — 하단 탭은 4개 + 가운데 올리기 버튼(`tab-upload`). 더보기는 탭이 아니라 스택 화면이다
+const TABS = ["홈", "분석", "정원", "커뮤니티"];
 const TEXT_LOGIN = "Google로 계속하기";
 
 const failures = [];
@@ -123,12 +124,18 @@ try {
   adb(["logcat", "-c"]);
   const start = coldStart();
   console.log(`  · 콜드 스타트 TotalTime ${start.total}ms · WaitTime ${start.wait}ms (에뮬레이터 — 참고용)`);
-  const home = await until((x) => hasTabs(x), 45_000);
+  // 홈은 동물이 계속 움직여 덤프가 실패한다 — 앱이 뜬 뒤 정지 모드 딥링크로 같은 화면을 다시 연다 (로그인이 풀렸으면 로그인 화면이 그대로 뜬다)
+  await wait(3500);
+  await openRoute("?still=1", 3000);
+  const home = await until((x) => hasTabs(x) || x.includes(TEXT_LOGIN), 45_000);
+  if (!home.ok || home.xml.includes(TEXT_LOGIN)) {
+    home.ok = hasTabs(home.xml);
+  }
   if (!home.ok && home.xml.includes(TEXT_LOGIN)) {
     check(false, "로그인 상태", "로그인 화면이 떴다 — 먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요 (개발 빌드와 같은 서명이어야 로그인이 남는다)");
     throw new Error("not signed in");
   }
-  check(home.ok, "개발 서버 없이 뜬다 — 로그인 상태가 그대로이고 하단 탭 5개가 보인다");
+  check(home.ok, "개발 서버 없이 뜬다 — 로그인 상태가 그대로이고 하단 탭 4개가 보인다");
   check(Number.isFinite(start.total) && start.total < 8000, "콜드 스타트 8초 이내 (에뮬레이터 기준 — 실기기는 더 빠르다)", `${start.total}ms`);
 
   /* ── 2. 개발 흔적 ────────────────────────────────────────── */
@@ -147,16 +154,18 @@ try {
   check(risky.length === 0, "위험 권한 · 정확한 알람 · launcher 배지 권한이 없다", risky.join(","));
 
   /* ── 4. 화면 ─────────────────────────────────────────────── */
-  const tabId = (t) => ({ 홈: "tab-home", 분석: "tab-analysis", 정원: "tab-garden", 커뮤니티: "tab-community", 더보기: "tab-more" })[t];
-  const rootOf = { 홈: "dashboard", 분석: "analysis", 정원: "garden", 커뮤니티: "community", 더보기: "more-tab" };
+  const tabId = (t) => ({ 홈: "tab-home", 분석: "tab-analysis", 정원: "tab-garden", 커뮤니티: "tab-community" })[t];
+  const rootOf = { 홈: "home", 분석: "analysis", 정원: "garden", 커뮤니티: "community" };
   for (const tab of TABS) {
-    // 정원은 동물이 계속 움직여 uiautomator 덤프가 실패한다 — 정지 모드(`still=1`)로 연다 (mobile.md "정원 아트 · 애니메이션")
+    // 홈 · 정원은 동물이 계속 움직여 uiautomator 덤프가 실패한다 — 정지 모드(`still=1`)로 연다 (mobile.md "정원 아트 · 애니메이션")
     if (tab === "정원") await openRoute("garden?still=1", 3500);
+    else if (tab === "홈") await openRoute("?still=1", 3500);
     else tapId(dumpUi(), tabId(tab));
     const screen = await until((x) => has(x, rootOf[tab]), 20_000);
     await wait(2500); // 실서버 데이터가 들어올 시간
     xml = dumpUi();
     check(screen.ok && !has(xml, "error-notice"), `${tab} 탭이 실서버 데이터로 열린다 (오류 안내 없음)`);
+    if (tab === "분석") check(has(xml, "tab-upload"), "하단 탭바 가운데에 올리기(+) 버튼이 있다");
     if (tab === "정원") shot("M9-release-garden.png");
     if (tab === "홈") shot("M9-release-home.png");
   }
@@ -170,6 +179,7 @@ try {
   shot("M9-release-garden-3d.png");
   await openRoute("community", 3000); // 움직이는 화면을 떠난다 — 이어지는 덤프가 실패하지 않게
   const stackScreens = [
+    ["more", "더보기"],
     ["history", "기록"],
     ["goals", "목표"],
     ["badges", "배지"],
@@ -178,7 +188,7 @@ try {
   ];
   for (const [route, label] of stackScreens) {
     await openRoute(route, 3500);
-    const opened = await until((x) => has(x, route === "history" ? "history" : route), 20_000);
+    const opened = await until((x) => has(x, route === "more" ? "more-tab" : route), 20_000);
     await wait(2000);
     xml = dumpUi();
     check(opened.ok && !has(xml, "error-notice"), `${label} 화면이 실서버 데이터로 열린다`);
@@ -204,6 +214,8 @@ try {
 
   /* ── 6. 재시작 · 로그 ────────────────────────────────────── */
   const again = coldStart();
+  await wait(3500);
+  await openRoute("?still=1", 3000); // 홈의 동물이 움직이면 덤프가 실패한다
   const relogin = await until((x) => hasTabs(x), 45_000);
   check(relogin.ok && !relogin.xml.includes(TEXT_LOGIN), "앱을 껐다 켜도 로그인이 남는다", `${again.total}ms`);
   check(Boolean((adb(["shell", "pidof", PACKAGE]).stdout ?? "").trim()), "앱 프로세스 생존");

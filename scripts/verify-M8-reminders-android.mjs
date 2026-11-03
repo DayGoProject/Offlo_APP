@@ -38,7 +38,8 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TABS = ["홈", "분석", "정원", "커뮤니티", "더보기"];
+// UIUX 실험 A안 — 하단 탭 4개(+ 가운데 올리기 버튼). 더보기는 스택 화면(`offlo://more` · 각 탭 헤더의 프로필 버튼)
+const TABS = ["홈", "분석", "정원", "커뮤니티"];
 const TEXT_LOGIN = "Google로 계속하기";
 const KINDS = ["evening", "hungry", "goal"];
 const ALLOWED_LINKS = ["/analysis", "/goals"];
@@ -114,6 +115,7 @@ async function dismissDevMenu() {
 async function launchApp() {
   adb(["shell", "am", "force-stop", PACKAGE]);
   await wait(1000);
+  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]); // 길이 중간에 끊긴 적이 있다 — 앱을 다시 띄울 때마다 다시 잇는다 (같은 걸 또 이어도 무해)
   adb(["logcat", "-c"]);
   adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", DEV_CLIENT_URL, "-p", PACKAGE]);
   for (let i = 0; i < 60; i++) {
@@ -121,6 +123,9 @@ async function launchApp() {
     if ((adb(["logcat", "-d", "-s", "ReactNativeJS"]).stdout ?? "").includes('Running "main"')) {
       await wait(2000);
       await dismissDevMenu();
+      // 홈의 동물이 계속 움직이면 uiautomator 덤프가 실패한다 — 정지 모드 딥링크로 같은 홈을 다시 연다 (로그인 전이면 로그인 화면이 그대로 뜬다)
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://?still=1", "-p", PACKAGE]);
+      await wait(2500);
       return true;
     }
   }
@@ -335,6 +340,16 @@ async function tapVisible(id) {
   }
   return false;
 }
+/** 덤프엔 화면에 보이는 것만 나온다 — A안에서는 카드가 길어져 안내 아래 버튼이 화면 밖일 수 있다. 보일 때까지 아래로 스크롤해 그때의 덤프를 돌려준다 */
+async function bringIntoView(id) {
+  let xml = dumpUi();
+  for (let i = 0; i < 6 && !has(xml, id); i++) {
+    scrollDown(500);
+    await wait(700);
+    xml = dumpUi();
+  }
+  return xml;
+}
 async function tapSwitch(kind, settleMs = 1500) {
   const ok = await tapVisible(`reminder-switch-${kind}`);
   await wait(settleMs);
@@ -360,7 +375,7 @@ try {
     check(false, "로그인 상태", "먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요");
     throw new Error("not signed in");
   }
-  check(tabs.ok, "하단 탭 5개");
+  check(tabs.ok, "하단 탭 4개");
 
   /* 매니페스트 권한 — 알림 · 부팅 후 재예약만. 정확한 알람 권한은 쓰지 않는다 */
   const pkgDump = adb(["shell", "dumpsys", "package", PACKAGE], { maxBuffer: 32 * 1024 * 1024 }).stdout ?? "";
@@ -400,7 +415,7 @@ try {
   check(first.shown && first.closed, "스위치를 켜면 그때 시스템 알림 권한 창이 뜬다 (거절을 눌렀다)");
   let denied = await until((x) => has(x, "reminders-denied"), 8000);
   check(denied.ok && switchState(denied.xml).evening === false, "거절하면 스위치는 꺼진 채 · 기기 알림이 꺼져 있다는 안내가 뜬다");
-  check(has(denied.xml, "reminders-open-settings"), "안내에 \"기기 설정 열기\" 버튼이 있다");
+  check(has(await bringIntoView("reminders-open-settings"), "reminders-open-settings"), "안내에 \"기기 설정 열기\" 버튼이 있다");
   shot("M8-android-reminders-denied.png");
 
   // 2차 — 시스템은 두 번째까지 창을 띄운다
@@ -414,7 +429,8 @@ try {
   if (thirdShowsDialog) await answerDialog("deny");
   check(!thirdShowsDialog, "영구 거절 뒤에는 시스템 권한 창이 더 뜨지 않는다 (기기 설정에서 직접 켜야 한다)");
   denied = await until((x) => has(x, "reminders-denied"), 6000);
-  check(denied.ok && switchState(denied.xml).evening === false && has(denied.xml, "reminders-open-settings"), "그래도 스위치는 꺼진 채 · 안내 + 기기 설정 버튼이 남는다 (앱이 멈추거나 창이 뜨지 않는다)");
+  const deniedAgain = await bringIntoView("reminders-open-settings");
+  check(denied.ok && switchState(denied.xml).evening === false && has(deniedAgain, "reminders-open-settings"), "그래도 스위치는 꺼진 채 · 안내 + 기기 설정 버튼이 남는다 (앱이 멈추거나 창이 뜨지 않는다)");
 
   // 기기 설정 열기 → 시스템 설정 앱이 열린다 → 사용자가 허용한 것처럼 권한을 주고 돌아온다
   check(await tapVisible("reminders-open-settings"), "화면 아래 \"기기 설정 열기\" 버튼을 누를 수 있다");

@@ -100,6 +100,8 @@
     "verify:M9-moderation-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-moderation-api.mjs",
     "verify:M9-moderation-logic": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-moderation-logic.mjs",
     "verify:M9-moderation-web": "node scripts/verify-M9-moderation-web.mjs",
+    "verify:A-logic": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-A-logic.mjs",
+    "verify:A-stage-web": "node scripts/verify-A-stage-web.mjs",
     "verify:M9-sanctions-api": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-M9-sanctions-api.mjs",
     "verify:M9-admin-web": "node scripts/verify-M9-admin-web.mjs",
     "verify:M9-release-android": "node scripts/verify-M9-release-android.mjs",

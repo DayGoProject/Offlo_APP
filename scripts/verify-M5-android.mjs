@@ -126,6 +126,7 @@ async function dismissDevMenu() {
 async function launchApp() {
   adb(["shell", "am", "force-stop", PACKAGE]);
   await wait(1000);
+  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]); // 길이 중간에 끊긴 적이 있다 — 앱을 다시 띄울 때마다 다시 잇는다 (같은 걸 또 이어도 무해)
   adb(["logcat", "-c"]);
   adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", DEV_CLIENT_URL, "-p", PACKAGE]);
   for (let i = 0; i < 60; i++) {
@@ -133,6 +134,9 @@ async function launchApp() {
     if ((adb(["logcat", "-d", "-s", "ReactNativeJS"]).stdout ?? "").includes('Running "main"')) {
       await wait(2000);
       await dismissDevMenu();
+      // 홈의 동물이 계속 움직이면 uiautomator 덤프가 실패한다 — 정지 모드 딥링크로 같은 홈을 다시 연다 (로그인 전이면 로그인 화면이 그대로 뜬다)
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://?still=1", "-p", PACKAGE]);
+      await wait(2500);
       return true;
     }
   }
@@ -307,11 +311,11 @@ try {
   // 결과는 코치 카드까지 내려 둔 채라 점수 링이 화면 밖이다 (덤프엔 보이는 것만 나온다) — 화면 틀로 확인한다
   check((await waitUntil((x) => has(x, "result") && !has(x, "chat-input"), 15_000)).ok, "채팅 뒤로 → 결과");
   adb(["shell", "input", "keyevent", "KEYCODE_BACK"]);
-  check((await waitUntil((x) => has(x, "tab-more") && has(x, "analysis"), 15_000)).ok, "결과 뒤로 → 분석 탭");
+  check((await waitUntil((x) => has(x, "open-profile") && has(x, "analysis"), 15_000)).ok, "결과 뒤로 → 분석 탭");
   await wait(800);
   const more = await (async () => {
     for (let i = 0; i < 3; i++) {
-      tap(dumpUi(), "resource-id", "tab-more");
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://more", "-p", PACKAGE]); // 더보기는 탭이 아니다 — 헤더의 프로필 버튼은 개발 빌드의 Expo "Tools" 떠 있는 버튼에 가려지므로 딥링크로 연다
       // "내 계정"이 서버 정보를 받으면 카드가 길어져 메뉴가 아래로 밀린다 — 다 받은 뒤에 위치를 읽는다
       const r = await waitUntil((x) => has(x, "menu-history") && (has(x, "account-profile") || has(x, "account-error")), 12_000);
       if (r.ok) return r;

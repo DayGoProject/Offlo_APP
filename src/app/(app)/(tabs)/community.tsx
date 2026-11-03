@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useAuth } from "@/auth-context";
 import CommunityView, { type CommunityMode } from "@/components/community/CommunityView";
@@ -33,6 +33,7 @@ const server: FeedServer = {
 
 export default function CommunityTab() {
   const { user } = useAuth();
+  const router = useRouter();
   const { post: highlightId } = useLocalSearchParams<{ post?: string }>();
   const [mode, setMode] = useState<CommunityMode>("feed");
   const [now, setNow] = useState(() => Date.now());
@@ -77,6 +78,7 @@ export default function CommunityTab() {
 
   return (
     <CommunityView
+      onOpenProfile={() => router.push("/more")}
       now={now}
       myName={user?.displayName ?? user?.email ?? ""}
       mode={mode}

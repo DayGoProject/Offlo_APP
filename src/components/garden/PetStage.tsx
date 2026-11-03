@@ -59,6 +59,8 @@ export default function PetStage({
   animate = true,
   active = true,
   onPet,
+  bleed = false,
+  chipTop = 12,
 }: {
   type: AnimalTypeId;
   streak: number;
@@ -73,6 +75,10 @@ export default function PetStage({
   active?: boolean;
   /** 쓰다듬기 한 번이 친밀도로 인정되는지 알려 준다 (한 번에 한 번만 부른다) — 없으면 화면 효과만 */
   onPet?: () => TapResult;
+  /** 화면 폭을 꽉 채운다 — 카드 모서리 · 테두리를 없앤다 (UIUX 실험 A안의 홈 히어로) */
+  bleed?: boolean;
+  /** 상태 칩의 위쪽 여백 — 히어로가 상태바 밑까지 올라올 때 안전 영역만큼 내린다 */
+  chipTop?: number;
 }) {
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width));
@@ -191,7 +197,7 @@ export default function PetStage({
       testID="pet-stage"
       accessibilityLabel={`${CONDITION_LABEL[condition]} 상태의 반려 동물이 사는 방`}
       onLayout={onLayout}
-      style={[styles.stage, { aspectRatio: ROOM_W / ROOM_H }]}
+      style={[styles.stage, bleed && styles.stageBleed, { aspectRatio: ROOM_W / ROOM_H }]}
     >
       {width > 0 ? (
         <>
@@ -265,7 +271,7 @@ export default function PetStage({
           </View>
 
           {/* 상태 칩 */}
-          <View testID="pet-condition-chip" style={styles.chip}>
+          <View testID="pet-condition-chip" style={[styles.chip, { top: chipTop }]}>
             <View style={[styles.dot, { backgroundColor: condition === "fed" ? colors.brand : colors.textFaint }]} />
             <Text style={styles.chipText}>{CONDITION_LABEL[condition]}</Text>
           </View>
@@ -284,10 +290,14 @@ const styles = StyleSheet.create({
   stage: {
     width: "100%",
     overflow: "hidden",
-    borderRadius: radius.card,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.bgCard,
+  },
+  stageBleed: {
+    borderRadius: 0,
+    borderWidth: 0,
   },
   bubbleSlot: {
     position: "absolute",
@@ -316,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.borderCard,
-    backgroundColor: "rgba(4, 5, 8, 0.6)",
+    backgroundColor: colors.glass,
   },
   dot: {
     width: 5,

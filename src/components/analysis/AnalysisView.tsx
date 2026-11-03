@@ -2,7 +2,7 @@
  * AI 분석 탭의 그림 — 데이터와 흐름 상태는 props로만 받는다 (mobile.md "웹 미리보기 — 미리보기 화면").
  * 이 파일은 `api` · `useAuth` · Firebase를 import하지 않는다. 불러오기와 흐름은 app/(app)/(tabs)/analysis.tsx.
  *
- * 순서: 헤더(오늘 상태 · 분석 방법) → 업로드 무대 → 에러 → 주간 종합 분석 → 최근 결과
+ * 순서: 헤더(오늘 상태 · 분석 방법 · 프로필) → 업로드 무대 → 에러 → 둘러보기 타일 → 주간 종합 분석 → 최근 결과 (UIUX 실험 A안)
  */
 import { useState } from "react";
 
@@ -10,11 +10,15 @@ import HowToModal from "@/components/analysis/HowToModal";
 import RecentResults from "@/components/analysis/RecentResults";
 import UploadStage, { type StageKind } from "@/components/analysis/UploadStage";
 import WeeklyCard from "@/components/analysis/WeeklyCard";
+import BrowseTiles from "@/components/analysis/BrowseTiles";
+import CircleButton from "@/components/app/CircleButton";
 import ErrorNotice from "@/components/app/ErrorNotice";
+import { ProfileIcon } from "@/components/app/HeaderIcons";
+import { InfoIcon } from "@/components/app/Icons";
 import PageHeader from "@/components/app/PageHeader";
-import Pill from "@/components/app/Pill";
 import Screen from "@/components/app/Screen";
 import Skeleton from "@/components/app/Skeleton";
+import { browseTiles } from "@/logic/browse";
 import {
   thisWeekDaily,
   thisWeekWeekly,
@@ -24,6 +28,7 @@ import {
   type UploadState,
   type WeeklyState,
 } from "@/logic/analysis";
+import { colors } from "@/theme";
 
 export interface AnalysisViewProps {
   /** 오늘 · 이번 주를 가르는 기준 시각 (ms) */
@@ -45,6 +50,10 @@ export interface AnalysisViewProps {
   onRetryWeeklySave: () => void;
 
   onOpenResult: (analysisId: string) => void;
+  /** 둘러보기의 "분석 기록" 타일 */
+  onOpenHistory: () => void;
+  /** 헤더의 프로필 버튼 (더보기) */
+  onOpenProfile: () => void;
 }
 
 export default function AnalysisView(props: AnalysisViewProps) {
@@ -70,8 +79,18 @@ export default function AnalysisView(props: AnalysisViewProps) {
     <Screen testID="analysis" underTabBar onRefresh={onRetry} refreshing={loading && records !== null}>
       <PageHeader
         eyebrow={records ? (today ? "오늘 분석 완료 · 하루 1회" : "오늘 분석 전 · 하루 1회") : "불러오는 중"}
-        title="AI 분석"
-        actions={<Pill testID="open-howto" label="분석 방법" onPress={() => setHowTo(true)} />}
+        title="분석"
+        back={false}
+        trailing={
+          <>
+            <CircleButton testID="open-howto" label="분석 방법" onPress={() => setHowTo(true)}>
+              <InfoIcon color={colors.textPrimary} size={20} />
+            </CircleButton>
+            <CircleButton testID="open-profile" label="더보기" onPress={props.onOpenProfile}>
+              <ProfileIcon color={colors.textPrimary} size={20} />
+            </CircleButton>
+          </>
+        }
       />
 
       {records || busy || upload.phase === "save-failed" ? (
@@ -87,11 +106,13 @@ export default function AnalysisView(props: AnalysisViewProps) {
           onOpenToday={() => today && props.onOpenResult(today.id)}
         />
       ) : loading ? (
-        <Skeleton testID="stage-skeleton" height={320} radius={12} />
+        <Skeleton testID="stage-skeleton" height={320} radius={28} />
       ) : null}
 
       {upload.error ? <ErrorNotice testID="upload-error" message={upload.error} /> : null}
       {error ? <ErrorNotice testID="analysis-error" message={error} onRetry={onRetry} /> : null}
+
+      {records || loading ? <BrowseTiles tiles={browseTiles(records, now)} onOpen={props.onOpenHistory} /> : null}
 
       {records || loading ? (
         <WeeklyCard

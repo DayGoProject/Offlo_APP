@@ -34,7 +34,8 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TABS = ["홈", "분석", "정원", "커뮤니티", "더보기"];
+// UIUX 실험 A안 — 하단 탭 4개(+ 가운데 올리기 버튼). 더보기는 스택 화면(`offlo://more` · 각 탭 헤더의 프로필 버튼)
+const TABS = ["홈", "분석", "정원", "커뮤니티"];
 const TEXT_LOGIN = "Google로 계속하기";
 
 const failures = [];
@@ -120,6 +121,7 @@ async function dismissDevMenu() {
 async function launchApp() {
   adb(["shell", "am", "force-stop", PACKAGE]);
   await wait(1000);
+  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]); // 길이 중간에 끊긴 적이 있다 — 앱을 다시 띄울 때마다 다시 잇는다 (같은 걸 또 이어도 무해)
   adb(["logcat", "-c"]);
   adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", DEV_CLIENT_URL, "-p", PACKAGE]);
   for (let i = 0; i < 60; i++) {
@@ -127,6 +129,9 @@ async function launchApp() {
     if ((adb(["logcat", "-d", "-s", "ReactNativeJS"]).stdout ?? "").includes('Running "main"')) {
       await wait(2000);
       await dismissDevMenu();
+      // 홈의 동물이 계속 움직이면 uiautomator 덤프가 실패한다 — 정지 모드 딥링크로 같은 홈을 다시 연다 (로그인 전이면 로그인 화면이 그대로 뜬다)
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://?still=1", "-p", PACKAGE]);
+      await wait(2500);
       return true;
     }
   }
@@ -199,7 +204,7 @@ try {
     check(false, "로그인 상태", "먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요");
     throw new Error("not signed in");
   }
-  check(tabs.ok, "하단 탭 5개");
+  check(tabs.ok, "하단 탭 4개");
 
   /* ── 1. 더보기 메뉴 ──────────────────────────────────────── */
   await openRoute("more");
@@ -227,10 +232,10 @@ try {
   // 제목 입력 · 빠른 선택
   tapId(empty.xml, "goal-title");
   await wait(800);
-  await typeText("verify goal M7");
+  await typeText("1 verify goal M7");
   await hideKeyboard();
   let x1 = dumpUi();
-  check(nodeOf(x1, "goal-title")?.text === "verify goal M7", "한글이 아닌 입력도 입력칸에 들어간다 (키보드 · 포커스)", nodeOf(x1, "goal-title")?.text ?? "");
+  check(nodeOf(x1, "goal-title")?.text === "1 verify goal M7", "한글이 아닌 입력도 입력칸에 들어간다 (키보드 · 포커스)", nodeOf(x1, "goal-title")?.text ?? "");
   tapId(x1, "goal-preset-90");
   await wait(500);
   x1 = dumpUi();
@@ -258,10 +263,10 @@ try {
 
   // 저장 → 서버에 실제로 생긴다
   tapId(closed.xml, "goal-submit");
-  const created = await until((x) => !has(x, "goal-form") && x.includes("verify goal M7"), 25_000);
+  const created = await until((x) => !has(x, "goal-form") && x.includes("1 verify goal M7"), 25_000);
   check(created.ok, "저장 → 폼이 닫히고 새 목표가 목록에 뜬다 (실서버 POST /api/goals → 다시 읽기)");
   const afterIds = goalIds(created.xml);
-  const mine = afterIds.find((id) => nodeOf(created.xml, `goal-title-${id}`)?.text === "verify goal M7");
+  const mine = afterIds.find((id) => nodeOf(created.xml, `goal-title-${id}`)?.text === "1 verify goal M7");
   check(Boolean(mine) && afterIds.length === before.length + 1, "목록에 하나가 늘었다", `${before.length} → ${afterIds.length}`);
   shot("M7-android-goal-created.png");
 
@@ -269,23 +274,23 @@ try {
   check(await launchApp(), "앱 재시작 (메모리 상태를 버린다)");
   await until((x) => TABS.every((t) => x.includes(t)), 30_000);
   await openRoute("goals");
-  const persisted = await until((x) => x.includes("verify goal M7"), 25_000);
+  const persisted = await until((x) => x.includes("1 verify goal M7"), 25_000);
   check(persisted.ok, "껐다 켜도 목표가 그대로 — 서버에 저장됐다");
 
   // 수정
-  const goalId = goalIds(persisted.xml).find((id) => nodeOf(persisted.xml, `goal-title-${id}`)?.text === "verify goal M7");
+  const goalId = goalIds(persisted.xml).find((id) => nodeOf(persisted.xml, `goal-title-${id}`)?.text === "1 verify goal M7");
   tapId(persisted.xml, `goal-edit-${goalId}`);
   const editForm = await until((x) => has(x, "goal-form"), 10_000);
-  check(editForm.ok && nodeOf(editForm.xml, "goal-title")?.text === "verify goal M7" && nodeOf(editForm.xml, "goal-minutes")?.text === "90", "수정 → 기존 제목 · 시간이 채워져 있다 (서버 값)");
+  check(editForm.ok && nodeOf(editForm.xml, "goal-title")?.text === "1 verify goal M7" && nodeOf(editForm.xml, "goal-minutes")?.text === "90", "수정 → 기존 제목 · 시간이 채워져 있다 (서버 값)");
   tapId(editForm.xml, "goal-title");
   await wait(600);
   await clearField(30);
-  await typeText("verify goal edited");
+  await typeText("1 verify goal edited");
   await hideKeyboard();
   const editReady = dumpUi();
   tapId(editReady, "goal-submit");
-  const edited = await until((x) => !has(x, "goal-form") && x.includes("verify goal edited"), 25_000);
-  check(edited.ok && !edited.xml.includes("verify goal M7"), "수정 저장 → 제목이 바뀐다 (실서버 PATCH → 다시 읽기)");
+  const edited = await until((x) => !has(x, "goal-form") && x.includes("1 verify goal edited"), 25_000);
+  check(edited.ok && !edited.xml.includes("1 verify goal M7"), "수정 저장 → 제목이 바뀐다 (실서버 PATCH → 다시 읽기)");
 
   // 삭제 — 한 번 더 묻고 지운다
   tapId(edited.xml, `goal-delete-${goalId}`);
@@ -293,7 +298,7 @@ try {
   check(ask.ok && (nodeOf(ask.xml, `goal-ask-${goalId}`)?.text ?? "").length >= 0 && !has(ask.xml, `goal-edit-${goalId}`), "삭제 → 카드 안에서 한 번 더 묻는다 (다른 버튼은 감춘다)");
   tapId(ask.xml, `goal-ask-ok-${goalId}`);
   // 수정이 안 됐다면 "edited" 글자가 처음부터 없어 조건이 곧바로 참이 된다 — 두 제목이 모두 사라지고 개수가 처음으로 돌아올 때까지 기다린다
-  const gone = await until((x) => !x.includes("verify goal edited") && !x.includes("verify goal M7") && goalIds(x).length === before.length, 25_000);
+  const gone = await until((x) => !x.includes("1 verify goal edited") && !x.includes("1 verify goal M7") && goalIds(x).length === before.length, 25_000);
   check(gone.ok, "삭제 확인 → 목록이 처음 상태로 돌아온다 (실서버 DELETE)", `${goalIds(gone.xml).length}개`);
 
   /* ── 3. 배지 ─────────────────────────────────────────────── */
@@ -342,9 +347,11 @@ try {
   check(feed.ok && !has(feed.xml, "feed-error"), "커뮤니티 탭 — 실서버 피드가 불러와진다 (글쓰기 칸이 보인다)");
   shot("M7-android-community.png");
   // 글 본문 글자(`post-content-<id>`)로 센다 — 글 id 모양(cuid · uuid)에 기대지 않는다
-  const postIds = [...feed.xml.matchAll(/resource-id="post-content-([^"]+)"/g)].map((m) => m[1]);
-  console.log(`  · 첫 화면에 보이는 글: ${postIds.length}개 (${has(feed.xml, "feed-empty") ? "피드가 비어 있음" : "내용은 출력하지 않는다"})`);
-  check(postIds.length > 0 || has(feed.xml, "feed-empty"), "피드 — 글 카드가 있거나 빈 안내가 뜬다");
+  // 글쓰기 칸(헤더)은 목록보다 먼저 그려진다 — 첫 페이지가 도착해 글 카드나 빈 안내가 뜰 때까지 기다린다 (A안에서는 헤더가 길어져 카드가 더 늦게 보인다)
+  const listed = await until((x) => /resource-id="post-content-/.test(x) || has(x, "feed-empty"), 20_000);
+  const postIds = [...listed.xml.matchAll(/resource-id="post-content-([^"]+)"/g)].map((m) => m[1]);
+  console.log(`  · 첫 화면에 보이는 글: ${postIds.length}개 (${has(listed.xml, "feed-empty") ? "피드가 비어 있음" : "내용은 출력하지 않는다"})`);
+  check(postIds.length > 0 || has(listed.xml, "feed-empty"), "피드 — 글 카드가 있거나 빈 안내가 뜬다");
 
   // 글쓰기 입력 — 키보드 · 글자 수 · 올리기 버튼 (누르지 않는다)
   const composerNode = nodeOf(feed.xml, "composer-input");
@@ -365,10 +372,23 @@ try {
   }
 
   // 댓글 펼치기 (읽기만) — 첫 글
+  // 덤프엔 화면에 보이는 것만 나온다 — 긴 글이면 댓글 버튼 · 입력칸이 화면 아래(하단 탭바 뒤)에 있다. 탭바 위로 들어올 때까지 스크롤한다 (A안: 머리글이 길어졌다)
+  const scrollIntoView = async (id) => {
+    let xml = dumpUi();
+    for (let i = 0; i < 12; i++) {
+      const b = nodeOf(xml, id)?.bounds;
+      if (b && b[3] < 2050 && b[1] > 300) return xml;
+      scrollDown(500);
+      await wait(600);
+      xml = dumpUi();
+    }
+    return xml;
+  };
   if (postIds[0]) {
-    const x2 = dumpUi();
+    const x2 = await scrollIntoView(`post-comments-${postIds[0]}`);
     tapId(x2, `post-comments-${postIds[0]}`);
-    const opened = await until((x) => has(x, `post-comment-area-${postIds[0]}`), 12_000);
+    const opened0 = await until((x) => has(x, `post-comment-area-${postIds[0]}`), 12_000);
+    const opened = { ok: opened0.ok, xml: opened0.ok ? await scrollIntoView(`comment-input-${postIds[0]}`) : opened0.xml };
     check(opened.ok && has(opened.xml, `comment-input-${postIds[0]}`) && nodeOf(opened.xml, `comment-send-${postIds[0]}`)?.enabled === false, "글의 댓글을 펼친다 — 실서버 목록 · 입력칸 · 빈 입력이면 \"등록\"이 잠겨 있다 (올리지는 않는다)");
     // 키보드가 입력칸을 가리지 않는가
     tapId(opened.xml, `comment-input-${postIds[0]}`);
@@ -384,7 +404,13 @@ try {
   }
 
   // 주간 랭킹
-  const back = dumpUi();
+  // 위 단계에서 목록을 아래로 내려 두었다 — 머리글의 "주간 랭킹" 전환이 보일 때까지 맨 위로 올린다
+  let back = dumpUi();
+  for (let i = 0; i < 12 && !has(back, "segment-ranking"); i++) {
+    scrollUp(900);
+    await wait(500);
+    back = dumpUi();
+  }
   tapId(back, "segment-ranking");
   const ranking = await until((x) => has(x, "ranking-rows") || has(x, "ranking-empty") || has(x, "ranking-error"), 20_000);
   check(ranking.ok && !has(ranking.xml, "ranking-error"), "주간 랭킹 — 실서버에서 불러와진다 (순위 줄 또는 \"아직 없어요\" 안내)");

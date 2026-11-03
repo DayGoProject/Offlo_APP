@@ -62,6 +62,8 @@ export default function AnalysisPreview() {
       onGenerateWeekly={noop}
       onRetryWeeklySave={noop}
       onOpenResult={noop}
+      onOpenHistory={noop}
+      onOpenProfile={noop}
     />
   );
 }

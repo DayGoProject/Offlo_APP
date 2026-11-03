@@ -1,5 +1,5 @@
 /**
- * 업로드 무대 — 웹 분석 페이지의 점선 카드. 상태에 따라 안의 내용만 바뀐다.
+ * 업로드 무대 — 분석 탭의 히어로 카드(UIUX 실험 A안: 점선 대신 옅은 브랜드 면 + 큰 라운드). 상태에 따라 안의 내용만 바뀐다.
  *
  *   idle        스크린샷 고르기 (흰 알약 — 화면의 주 행동)
  *   picked      고른 사진 미리보기 · AI 분석 시작 · 다시 고르기
@@ -147,20 +147,19 @@ const styles = StyleSheet.create({
     minHeight: 320,
     alignItems: "center",
     justifyContent: "center",
-    gap: 18,
-    paddingHorizontal: 22,
-    paddingVertical: 36,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.bgCard,
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    borderRadius: radius.sheet,
+    borderWidth: 1,
+    borderColor: colors.accentLine,
+    backgroundColor: colors.accentFaint,
     overflow: "hidden",
   },
   badge: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.accentSoft,
@@ -171,9 +170,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.semibold,
-    fontSize: 18,
+    fontSize: 17,
     lineHeight: 24,
-    letterSpacing: em(18, -0.015),
+    letterSpacing: em(17, -0.015),
     color: colors.textPrimary,
     textAlign: "center",
   },
@@ -194,7 +193,7 @@ const styles = StyleSheet.create({
   preview: {
     width: "100%",
     height: 320,
-    borderRadius: 8,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.borderCard,
   },

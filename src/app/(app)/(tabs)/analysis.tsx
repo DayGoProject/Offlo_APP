@@ -4,14 +4,14 @@
  * 불러오는 것: 최근 일간 7건(이번 주 7칸 · 주간 요약의 앱별 시간) + 최근 주간 1건(이번 주 주간 분석 여부)
  * 하루 1회라 최근 일간 7건이면 이번 주(월~일)가 전부 들어온다.
  */
-import { useCallback, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import AnalysisView from "@/components/analysis/AnalysisView";
 import { notifyAnalysesChanged, useAnalysesChanged } from "@/hooks/analyses-changed";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { useDailyAnalysis, useWeeklyAnalysis } from "@/hooks/use-analysis-flow";
-import { thisWeekDaily, WEEKLY_THRESHOLD, type AnalysisRecords } from "@/logic/analysis";
+import { thisWeekDaily, todayDaily, WEEKLY_THRESHOLD, type AnalysisRecords } from "@/logic/analysis";
 import { api } from "@/services/api";
 
 export default function AnalysisTab() {
@@ -49,6 +49,23 @@ export default function AnalysisTab() {
   const daily = useDailyAnalysis({ onSaved: saved, onAlreadyDone: notifyAnalysesChanged });
   const weekly = useWeeklyAnalysis({ onSaved: saved });
 
+  // 홈의 "오늘 분석하기" · 가운데 + 버튼(`?start=pick`)이 오면 사진 고르기를 바로 연다 — 엄지 한 번으로 올리기까지.
+  // 기록을 읽은 뒤에 판단한다(오늘 이미 분석했으면 열지 않는다). 한 번 처리하면 주소의 표식을 지워 다음에 또 올 수 있다
+  const { start } = useLocalSearchParams<{ start?: string }>();
+  const startHandled = useRef(false);
+  const pickDaily = daily.pick;
+  const loaded = records.data;
+  useEffect(() => {
+    if (start !== "pick") {
+      startHandled.current = false;
+      return;
+    }
+    if (!loaded || startHandled.current) return;
+    startHandled.current = true;
+    router.setParams({ start: undefined });
+    if (!todayDaily(loaded.daily, Date.now())) pickDaily();
+  }, [start, loaded, pickDaily, router]);
+
   return (
     <AnalysisView
       now={now}
@@ -66,6 +83,8 @@ export default function AnalysisTab() {
       onGenerateWeekly={() => records.data && weekly.generate(thisWeekDaily(records.data.daily, Date.now()))}
       onRetryWeeklySave={weekly.retrySave}
       onOpenResult={openResult}
+      onOpenHistory={() => router.push("/history")}
+      onOpenProfile={() => router.push("/more")}
     />
   );
 }

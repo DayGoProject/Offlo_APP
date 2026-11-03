@@ -8,7 +8,7 @@ import { SparkIcon } from "@/components/app/TabIcons";
 import { relativeDay } from "@/logic/analysis";
 import type { AnalysisSummary } from "@/services/api-types";
 import { fmtHM } from "@/shared/format";
-import { colors, em, fonts } from "@/theme";
+import { colors, em, fonts, radius } from "@/theme";
 
 export default function RecentResults({
   records,
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 9,
+    borderRadius: radius.tile,
     backgroundColor: colors.bgNav,
   },
   rowMain: {
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 9,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.accentLine,
     backgroundColor: colors.accentSoft,

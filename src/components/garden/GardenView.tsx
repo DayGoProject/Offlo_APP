@@ -7,17 +7,22 @@
  * 상태 계산 · 동물 선택/변경 · 성장 단계 (6-1) + 방 장면 위에서 사는 동물 (6-2) + 쓰다듬기 · 친밀도 (6-4).
  */
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Card, { CardHeader } from "@/components/app/Card";
+import CircleButton from "@/components/app/CircleButton";
 import ErrorNotice from "@/components/app/ErrorNotice";
+import { ProfileIcon } from "@/components/app/HeaderIcons";
 import PageHeader from "@/components/app/PageHeader";
 import Pill from "@/components/app/Pill";
 import Screen from "@/components/app/Screen";
 import Skeleton from "@/components/app/Skeleton";
 import AffectionCard from "@/components/garden/AffectionCard";
 import AnimalPicker from "@/components/garden/AnimalPicker";
+import { ROOM_H, ROOM_W } from "@/components/garden/art/Room";
 import ChangeAnimalModal, { type ChangeAnimalTarget } from "@/components/garden/ChangeAnimalModal";
+import GardenSheet from "@/components/garden/GardenSheet";
 import MissionCard from "@/components/garden/MissionCard";
 import PetStage from "@/components/garden/PetStage";
 import PlantThumb from "@/components/garden/PlantThumb";
@@ -34,7 +39,7 @@ import {
 import { missionBoard, type WeekStatus } from "@/logic/mission";
 import type { GardenSnapshot } from "@/services/api-types";
 import { ANIMAL_STAGES, ANIMAL_TYPES, PLANT_LEVELS, type AnimalTypeId } from "@/shared/garden-utils";
-import { colors, fonts } from "@/theme";
+import { colors, fonts, radius } from "@/theme";
 
 export interface GardenViewProps {
   /** 기준 시각(ms) — 동물 상태의 "오늘"(KST) */
@@ -60,6 +65,10 @@ export interface GardenViewProps {
   /** 이번 주 분석 기록 — 주간 분석 미션이 쓴다 (불러오지 못했으면 null) */
   weekRecords?: AnalysisRecords | null;
   weekStatus?: WeekStatus;
+  /** 헤더의 프로필 버튼 (더보기) — 안 주면 그리지 않는다 */
+  onOpenProfile?: () => void;
+  /** 바닥 시트를 펼친 채로 시작한다 (미리보기 · 검증용) */
+  sheetOpen?: boolean;
 }
 
 const grouped = (n: number) => n.toLocaleString("ko-KR");
@@ -79,7 +88,18 @@ export default function GardenView({
   affection = null,
   weekRecords = null,
   weekStatus = "loading",
+  onOpenProfile,
+  sheetOpen = false,
 }: GardenViewProps) {
+  const insets = useSafeAreaInsets();
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const onBoxLayout = (e: LayoutChangeEvent) => setBox({ w: Math.round(e.nativeEvent.layout.width), h: Math.round(e.nativeEvent.layout.height) });
+  const profile = onOpenProfile ? (
+    <CircleButton testID="open-profile" label="더보기" onPress={onOpenProfile}>
+      <ProfileIcon color={colors.textPrimary} size={20} />
+    </CircleButton>
+  ) : undefined;
+
   // 변경 중(선택 화면) · 경고 모달 — 화면 안에서만 쓰는 상태
   const [changing, setChanging] = useState(false);
   const [target, setTarget] = useState<ChangeAnimalTarget | null>(null);
@@ -88,7 +108,7 @@ export default function GardenView({
   if (!data && error && !loading) {
     return (
       <Screen testID="garden" underTabBar onRefresh={onRetry}>
-        <PageHeader eyebrow="반려 정원" title="정원을 불러오지 못했어요" />
+        <PageHeader eyebrow="반려 정원" title="정원을 불러오지 못했어요" back={false} />
         <ErrorNotice testID="garden-error" message={error} onRetry={onRetry} />
       </Screen>
     );
@@ -97,10 +117,10 @@ export default function GardenView({
   if (!data) {
     return (
       <Screen testID="garden" underTabBar>
-        <PageHeader eyebrow="반려 정원" title="정원을 불러오는 중이에요" />
-        <Skeleton testID="garden-skeleton" height={260} radius={12} />
-        <Skeleton height={120} radius={12} />
-        <Skeleton height={200} radius={12} />
+        <PageHeader eyebrow="반려 정원" title="정원을 불러오는 중이에요" back={false} />
+        <Skeleton testID="garden-skeleton" height={260} radius={20} />
+        <Skeleton height={120} radius={20} />
+        <Skeleton height={200} radius={20} />
       </Screen>
     );
   }
@@ -115,7 +135,7 @@ export default function GardenView({
     const copy = conditionCopy("none", null);
     return (
       <Screen testID="garden" underTabBar refreshing={loading} onRefresh={onRetry}>
-        <PageHeader eyebrow={`LV.${plant.level.level} · ${plant.level.name}`} title={copy.headline} />
+        <PageHeader eyebrow={`LV.${plant.level.level} · ${plant.level.name}`} title={copy.headline} back={false} trailing={profile} />
         <AnimalPicker disabled={saving} onPick={(picked) => onSelectAnimal(picked, false)} />
         {actionError ? <ErrorNotice testID="garden-action-error" message={actionError} /> : null}
         <PlantSection plant={plant} totalMinutes={data.totalDetoxMinutes} />
@@ -133,116 +153,158 @@ export default function GardenView({
     ? missionBoard({ condition, petToday: affection.view.today, records: weekRecords, weekStatus, now })
     : null;
 
-  return (
-    <Screen testID="garden" underTabBar refreshing={loading} onRefresh={onRetry}>
-      <PageHeader eyebrow={`${typeName} · ${progress.stage.name}`} title={copy.headline} />
+  const eyebrow = `${typeName} · ${progress.stage.name}`;
+  const changeModal = (
+    <ChangeAnimalModal
+      target={target}
+      saving={saving}
+      onCancel={() => setTarget(null)}
+      onConfirm={async () => {
+        if (!target) return;
+        // 저장이 끝날 때까지 모달을 열어 둔다 — 그동안 버튼은 "변경 중…"으로 잠긴다
+        const ok = await onSelectAnimal(target.to, true);
+        setTarget(null);
+        if (ok) setChanging(false);
+      }}
+    />
+  );
 
-      {changing ? (
+  // 동물 변경 — 방 대신 선택 화면 (옛 구조 그대로: 머리글 + 선택 카드 + 취소)
+  if (changing) {
+    return (
+      <Screen testID="garden" underTabBar refreshing={loading} onRefresh={onRetry}>
+        <PageHeader eyebrow={eyebrow} title={copy.headline} back={false} trailing={profile} />
         <AnimalPicker
           current={type}
           disabled={saving}
           onPick={(to) => setTarget({ from: type, streak: animal.streak, stageName: progress.stage.name, to })}
           onCancel={() => setChanging(false)}
         />
-      ) : (
+        {actionError ? <ErrorNotice testID="garden-action-error" message={actionError} /> : null}
+        {changeModal}
+      </Screen>
+    );
+  }
+
+  // 방 장면이 화면 폭을 꽉 채워 상태바 밑까지 올라가고, 카드들은 아래 바닥 시트에 담긴다 (UIUX 실험 A안)
+  const roomBottom = box.w * (ROOM_H / ROOM_W);
+  return (
+    <View testID="garden" onLayout={onBoxLayout} style={styles.root}>
+      {box.w > 0 ? (
         <>
-          <PetStage
-            type={type}
-            streak={animal.streak}
-            condition={condition}
-            totalMinutes={data.totalDetoxMinutes}
-            now={now}
-            animate={animate}
-            active={active}
-            onPet={affection?.tap}
-          />
+          <View style={styles.room}>
+            <PetStage
+              type={type}
+              streak={animal.streak}
+              condition={condition}
+              totalMinutes={data.totalDetoxMinutes}
+              now={now}
+              animate={animate}
+              active={active}
+              onPet={affection?.tap}
+              bleed
+              chipTop={insets.top + 8}
+            />
+          </View>
+          {onOpenProfile ? (
+            <View style={[styles.topButtons, { top: insets.top + 4 }]}>
+              <CircleButton testID="open-profile" label="더보기" glass onPress={onOpenProfile}>
+                <ProfileIcon color={colors.textPrimary} size={20} />
+              </CircleButton>
+            </View>
+          ) : null}
 
-          <Card testID="pet-condition">
-            <Text testID="pet-condition-sub" style={styles.sub}>
-              {copy.sub}
-            </Text>
-            {needsFood ? (
-              <View style={styles.row}>
-                <Pill
-                  testID="garden-feed"
-                  variant="accent"
-                  label={condition === "egg" ? "첫 분석으로 부화시키기" : "밥 주기 (오늘 분석하기)"}
-                  onPress={onFeed}
-                />
-              </View>
-            ) : null}
-          </Card>
-
-          {board ? <MissionCard board={board} onGoAnalysis={onFeed} /> : null}
-
-          {affection ? <AffectionCard view={affection.view} error={affection.error} /> : null}
-        </>
-      )}
-
-      {actionError ? <ErrorNotice testID="garden-action-error" message={actionError} /> : null}
-
-      <Card testID="animal-growth">
-        <CardHeader
-          title="반려 동물 성장"
-          right={`${progress.stageNumber} / ${ANIMAL_STAGES.length}`}
-          rightTone="brand"
-        />
-        <View style={styles.stages}>
-          {ANIMAL_STAGES.map((stage) => {
-            const current = stage.status === progress.stage.status;
-            const reached = animal.streak >= stage.minStreak;
-            return (
-              <View
-                key={stage.status}
-                testID={`stage-row-${stage.status}`}
-                accessibilityState={{ selected: current }}
-                style={[styles.stageRow, current && styles.stageRowCurrent]}
-              >
-                <View style={[styles.stageDot, { backgroundColor: reached ? colors.brand : colors.textGhost }]} />
-                <Text
-                  style={[
-                    styles.stageName,
-                    { color: current ? colors.brand : reached ? colors.textPrimary : colors.textFaint },
-                    current && { fontFamily: fonts.semibold },
-                  ]}
-                >
-                  {stage.name}
+          <GardenSheet
+            height={box.h}
+            roomBottom={roomBottom}
+            topInset={insets.top + 64}
+            defaultExpanded={sheetOpen}
+            refreshing={loading}
+            onRefresh={onRetry}
+            header={
+              <>
+                <Text numberOfLines={1} style={styles.eyebrow}>
+                  {eyebrow}
                 </Text>
-                <Text style={styles.stageDays}>{stage.minStreak === 0 ? "시작" : `${stage.minStreak}일`}</Text>
+                <Text testID="garden-headline" accessibilityRole="header" style={styles.headline}>
+                  {copy.headline}
+                </Text>
+              </>
+            }
+          >
+            <Card testID="pet-condition">
+              <Text testID="pet-condition-sub" style={styles.sub}>
+                {copy.sub}
+              </Text>
+              {needsFood ? (
+                <View style={styles.row}>
+                  <Pill
+                    testID="garden-feed"
+                    variant="accent"
+                    label={condition === "egg" ? "첫 분석으로 부화시키기" : "밥 주기 (오늘 분석하기)"}
+                    onPress={onFeed}
+                  />
+                </View>
+              ) : null}
+            </Card>
+
+            {actionError ? <ErrorNotice testID="garden-action-error" message={actionError} /> : null}
+
+            {board ? <MissionCard board={board} onGoAnalysis={onFeed} /> : null}
+
+            {affection ? <AffectionCard view={affection.view} error={affection.error} /> : null}
+
+            <Card testID="animal-growth">
+              <CardHeader
+                title="반려 동물 성장"
+                right={`${progress.stageNumber} / ${ANIMAL_STAGES.length}`}
+                rightTone="brand"
+              />
+              <View style={styles.stages}>
+                {ANIMAL_STAGES.map((stage) => {
+                  const current = stage.status === progress.stage.status;
+                  const reached = animal.streak >= stage.minStreak;
+                  return (
+                    <View
+                      key={stage.status}
+                      testID={`stage-row-${stage.status}`}
+                      accessibilityState={{ selected: current }}
+                      style={[styles.stageRow, current && styles.stageRowCurrent]}
+                    >
+                      <View style={[styles.stageDot, { backgroundColor: reached ? colors.brand : colors.textGhost }]} />
+                      <Text
+                        style={[
+                          styles.stageName,
+                          { color: current ? colors.brand : reached ? colors.textPrimary : colors.textFaint },
+                          current && { fontFamily: fonts.semibold },
+                        ]}
+                      >
+                        {stage.name}
+                      </Text>
+                      <Text style={styles.stageDays}>{stage.minStreak === 0 ? "시작" : `${stage.minStreak}일`}</Text>
+                    </View>
+                  );
+                })}
               </View>
-            );
-          })}
-        </View>
-        <ProgressFoot
-          testID="animal-progress"
-          value={progress.next ? `${animal.streak} / ${progress.next.minStreak}` : `${animal.streak}`}
-          unit="일"
-          ratio={progress.ratio}
-          note={progress.next ? `${progress.next.name}까지 ${progress.remainDays}일 남았어요` : "마지막 단계에 도달했어요"}
-        />
-      </Card>
+              <ProgressFoot
+                testID="animal-progress"
+                value={progress.next ? `${animal.streak} / ${progress.next.minStreak}` : `${animal.streak}`}
+                unit="일"
+                ratio={progress.ratio}
+                note={progress.next ? `${progress.next.name}까지 ${progress.remainDays}일 남았어요` : "마지막 단계에 도달했어요"}
+              />
+            </Card>
 
-      <PlantSection plant={plant} totalMinutes={data.totalDetoxMinutes} />
+            <PlantSection plant={plant} totalMinutes={data.totalDetoxMinutes} />
 
-      {!changing ? (
-        <View style={styles.row}>
-          <Pill testID="animal-change" label="동물 변경하기" onPress={() => setChanging(true)} />
-        </View>
+            <View style={styles.row}>
+              <Pill testID="animal-change" label="동물 변경하기" onPress={() => setChanging(true)} />
+            </View>
+          </GardenSheet>
+        </>
       ) : null}
-
-      <ChangeAnimalModal
-        target={target}
-        saving={saving}
-        onCancel={() => setTarget(null)}
-        onConfirm={async () => {
-          if (!target) return;
-          // 저장이 끝날 때까지 모달을 열어 둔다 — 그동안 버튼은 "변경 중…"으로 잠긴다
-          const ok = await onSelectAnimal(target.to, true);
-          setTarget(null);
-          if (ok) setChanging(false);
-        }}
-      />
-    </Screen>
+      {changeModal}
+    </View>
   );
 }
 
@@ -293,6 +355,35 @@ function PlantSection({
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bgPage,
+  },
+  room: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  topButtons: {
+    position: "absolute",
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+  },
+  eyebrow: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  headline: {
+    fontFamily: fonts.semibold,
+    fontSize: 28,
+    lineHeight: 36,
+    letterSpacing: -0.7,
+    color: colors.textPrimary,
+  },
   sub: {
     fontFamily: fonts.regular,
     fontSize: 13,
@@ -311,7 +402,7 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: 36,
     paddingHorizontal: 12,
-    borderRadius: 9,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: "transparent",
   },
@@ -347,7 +438,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingVertical: 8,
-    borderRadius: 9,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: "transparent",
   },

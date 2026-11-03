@@ -21,9 +21,11 @@ const noop = () => {};
 const THEN_AFTER_MS = 4500;
 
 export default function GardenPreview() {
-  const { state = "fed", still, minutes, streak, then, today, total, petfail, week = "4" } = useLocalSearchParams<{
+  const { state = "fed", still, sheet, minutes, streak, then, today, total, petfail, week = "4" } = useLocalSearchParams<{
     state?: string;
     still?: string;
+    /** open이면 바닥 시트를 펼친 채로 시작 */
+    sheet?: string;
     minutes?: string;
     streak?: string;
     then?: string;
@@ -103,6 +105,8 @@ export default function GardenPreview() {
       onRetry={noop}
       onSelectAnimal={async () => true}
       onFeed={noop}
+      onOpenProfile={noop}
+      sheetOpen={sheet === "open"}
       animate={still !== "1"}
       affection={data?.animal?.type ? affection : null}
       weekRecords={weekRecords}

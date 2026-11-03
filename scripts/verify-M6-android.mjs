@@ -40,7 +40,8 @@ const ADB = process.env.ANDROID_HOME
   ? join(process.env.ANDROID_HOME, "platform-tools", "adb")
   : join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk", "platform-tools", "adb.exe");
 
-const TABS = ["홈", "분석", "정원", "커뮤니티", "더보기"];
+// UIUX 실험 A안 — 하단 탭 4개(+ 가운데 올리기 버튼). 더보기는 스택 화면(`offlo://more` · 각 탭 헤더의 프로필 버튼)
+const TABS = ["홈", "분석", "정원", "커뮤니티"];
 const TEXT_LOGIN = "Google로 계속하기";
 /** logic/garden.ts conditionCopy의 헤드라인 — 계정 상태에 따라 하나가 뜬다 */
 const HEADLINES = {
@@ -111,6 +112,7 @@ async function dismissDevMenu() {
 async function launchApp() {
   adb(["shell", "am", "force-stop", PACKAGE]);
   await wait(1000);
+  adb(["reverse", `tcp:${PORT}`, `tcp:${PORT}`]); // 길이 중간에 끊긴 적이 있다 — 앱을 다시 띄울 때마다 다시 잇는다 (같은 걸 또 이어도 무해)
   adb(["logcat", "-c"]);
   adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", DEV_CLIENT_URL, "-p", PACKAGE]);
   for (let i = 0; i < 60; i++) {
@@ -118,6 +120,9 @@ async function launchApp() {
     if ((adb(["logcat", "-d", "-s", "ReactNativeJS"]).stdout ?? "").includes('Running "main"')) {
       await wait(2000);
       await dismissDevMenu();
+      // 홈의 동물이 계속 움직이면 uiautomator 덤프가 실패한다 — 정지 모드 딥링크로 같은 홈을 다시 연다 (로그인 전이면 로그인 화면이 그대로 뜬다)
+      adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "offlo://?still=1", "-p", PACKAGE]);
+      await wait(2500);
       return true;
     }
   }
@@ -170,15 +175,44 @@ function appVibrations() {
     .filter((l) => l.includes(PACKAGE) && l.includes("usage:"))
     .map((l) => ({ ts: l.match(/(\d\d-\d\d \d\d:\d\d:\d\d\.\d+)/)?.[1] ?? "", played: l.match(/played: \[(.*?)\]/)?.[1] ?? "" }));
 }
+/** 바닥 시트를 원하는 상태로 맞춘다 — 손잡이 줄(testID garden-sheet-handle)의 접근성 라벨("카드 펼치기" = 접힘 · "카드 접기" = 펼침)로 지금 상태를 읽고, 다르면 누른다.
+ *  카드(미션 · 친밀도 · 성장)는 접힌 시트 아래에 있어 펼쳐야 덤프에 나온다. 정지 모드에서만 덤프가 된다.
+ *  상태를 읽어서 맞추므로 중간에 한 번 실패해도 다음 시도가 뒤집어 놓지 않는다. */
+async function ensureSheet(open) {
+  for (let i = 0; i < 4; i++) {
+    const m = dumpUi().match(/resource-id="garden-sheet-handle"[^>]*?content-desc="([^"]*)"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+    if (m) {
+      const isOpen = m[1].includes("접기");
+      if (isOpen === open) return true;
+      const [x1, y1, x2, y2] = m.slice(2).map(Number);
+      adb(["shell", "input", "tap", String((x1 + x2) >> 1), String(Math.min(y1 + 50, y2 - 10))]);
+    }
+    await wait(1000);
+  }
+  return false;
+}
+/** 시트를 펼쳐 안을 조금 스크롤한 채로 덤프를 뜨고, 원래대로 접는다 (접어 두지 않으면 동물 위가 시트에 덮여 쓰다듬기가 안 된다) */
+async function dumpSheetCards() {
+  // 정원을 막 열었거나 3D가 아직 안착하지 않았으면 덤프가 비거나 카드가 아직 없다 — 몇 번 다시 시도한다
+  let xml = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await openGarden(true);
+    await wait(2500 + attempt * 1500);
+    await ensureSheet(true);
+    xml = dumpUi(); // 펼친 직후 — 미션 카드가 위쪽에 있다
+    adb(["shell", "input", "swipe", "540", "1800", "540", "1100", "300"]);
+    await wait(900);
+    xml += dumpUi(); // 조금 스크롤한 뒤 — 친밀도 카드까지
+    adb(["shell", "input", "swipe", "540", "1100", "540", "1900", "300"]);
+    await wait(500);
+    await ensureSheet(false); // 접어 둔다 — 열어 두면 동물 위가 시트에 덮여 쓰다듬기가 안 된다
+    if (xml.includes('resource-id="pet-affection-today"') || xml.includes('resource-id="mission-feed"')) break;
+  }
+  return xml;
+}
 /** 정원 탭의 친밀도 카드를 읽는다 — 정지 모드로 열고(uiautomator가 읽을 수 있게) 카드가 보이도록 스크롤했다가 되돌린다 */
 async function readAffection() {
-  await openGarden(true);
-  await wait(2000);
-  adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
-  await wait(900);
-  const xml = dumpUi();
-  adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
-  await wait(500);
+  const xml = await dumpSheetCards();
   const today = xml.match(/text="(\d+) \/ 5번" resource-id="pet-affection-today"/)?.[1];
   const level = xml.match(/text="(Lv\.\d · [^"]+)"/)?.[1] ?? null;
   return today === undefined ? null : { today: Number(today), level };
@@ -194,13 +228,7 @@ function diffCount(a, b) {
 
 /** 정원 탭의 미션 카드를 읽는다 — 줄마다 접근성 라벨(content-desc)이 "제목 진행, 완료|진행 중. 안내"다 */
 async function readMissions() {
-  await openGarden(true);
-  await wait(2000);
-  adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
-  await wait(900);
-  const xml = dumpUi();
-  adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
-  await wait(500);
+  const xml = await dumpSheetCards();
   const label = (id) => xml.match(new RegExp(`resource-id="${id}"[^>]*content-desc="([^"]*)"`))?.[1] ?? null;
   const header = xml.includes('text="모두 완료"') ? "모두 완료" : (xml.match(/text="(\d) \/ 2"/)?.[1] ?? null);
   return { feed: label("mission-feed"), pet: label("mission-pet"), weekly: label("mission-weekly"), header };
@@ -271,7 +299,7 @@ try {
     check(false, "로그인 상태", "먼저 앱에서 Google로 로그인한 뒤 다시 실행하세요");
     throw new Error("not signed in");
   }
-  check(tabs.ok, "하단 탭 5개");
+  check(tabs.ok, "하단 탭 4개");
 
   /* ── 1. [정지] 정원 탭 · 실데이터 ────────────────────────── */
   await openGarden(true);
@@ -310,7 +338,7 @@ try {
     check(Boolean(feed), "밥 주기 버튼이 보임", String(state));
     if (feed) {
       tapAt(feed);
-      const analysis = await waitForAll(["AI 분석", "주간 종합 분석"], 20_000);
+      const analysis = await waitForAll(["분석 기록", "주간 종합 분석"], 20_000);
       check(analysis.ok, "밥 주기 → 분석 탭으로 이동");
       shot("M6-android-feed-analysis.png");
       await openGarden(true);
@@ -431,11 +459,9 @@ try {
       }
       await openGarden(true);
       await wait(2000);
-      adb(["shell", "input", "swipe", "540", "1900", "540", "1000", "300"]);
-      await wait(900);
+      await ensureSheet(true);
       shot("M6-android-missions.png");
-      adb(["shell", "input", "swipe", "540", "700", "540", "2000", "300"]);
-      await wait(500);
+      await ensureSheet(false);
     }
   }
 

@@ -150,6 +150,7 @@ export default function CommunityPreview() {
 
   return (
     <CommunityView
+      onOpenProfile={noop}
       now={SAMPLE_NOW.getTime()}
       myName="지우"
       mode={mode}

@@ -6,7 +6,7 @@
  * - ghost: 세선
  * - danger: 되돌릴 수 없는 확인 (동물 변경 등)
  *
- * 높이는 Paper 기준 38px이고, 터치 영역은 hitSlop으로 44pt를 채운다 (mobile.md).
+ * 높이는 44pt — 터치 영역을 그대로 채운다 (UIUX 실험 A안).
  */
 import { Pressable, StyleSheet, Text } from "react-native";
 
@@ -34,7 +34,6 @@ export default function Pill({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={{ top: 3, bottom: 3 }}
       style={({ pressed }) => [
         styles.base,
         skins[variant].box,
@@ -48,14 +47,14 @@ export default function Pill({
 
 const styles = StyleSheet.create({
   base: {
-    height: 38,
+    height: 44,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
   },
   label: {
-    fontSize: 13,
+    fontSize: 14,
   },
 });
 

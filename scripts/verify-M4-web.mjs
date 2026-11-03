@@ -12,7 +12,7 @@
  * 확인 항목 (대시보드 · 기록 × 데이터 있음 · 비어 있음 · 불러오는 중 · 실패)
  *   - 샘플에서 계산한 숫자가 그대로 나오는가 (오늘 4h 12m · 어제보다 38분 ↓ · 연속 12일 · 1,450분 …)
  *   - 오전 8시(KST) 기록이 오늘로 잡히는가 · 상위 앱이 appName으로 나오는가 (웹 버그 수정분)
- *   - 폰트 — 숫자는 Familjen Grotesk, 제목은 Pretendard · 바탕 #040508
+ *   - 폰트 — 숫자는 Familjen Grotesk, 제목은 Pretendard · 바탕 #060913
  *   - 빈 상태 · 스켈레톤 · 한국어 에러 + 다시 시도
  *   - 가로 넘침 없음 · 콘솔 에러 0
  */
@@ -27,10 +27,10 @@ import { chromium } from "playwright-core";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, ".verify");
 const URL = process.env.OFFLO_WEB_URL ?? "http://localhost:8081";
-const BG = "rgb(4, 5, 8)";
+const BG = "rgb(6, 9, 19)";
 const BRAND = "rgb(61, 219, 135)";
 const TODAY_BAR = "rgba(61, 219, 135, 0.55)";
-const ACCENT_SOFT = "rgba(61, 219, 135, 0.13)";
+const ACCENT_SOFT = "rgba(61, 219, 135, 0.14)";
 const OFFLINE_TEXT = "인터넷에 연결되어 있지 않거나";
 
 const failures = [];
@@ -122,7 +122,7 @@ async function commonChecks(name, page, errors, scrollTestId) {
     };
   }, scrollTestId);
   check(layout.doc && layout.inner, `${name} · 가로 넘침 없음`);
-  check(layout.bg === BG, `${name} · 바탕 #040508`, layout.bg);
+  check(layout.bg === BG, `${name} · 바탕 #060913`, layout.bg);
   check(errors.length === 0, `${name} · 콘솔 에러 0`, errors.join(" | ").slice(0, 240));
 }
 
@@ -175,7 +175,7 @@ try {
     const numFont = await style(page, '[data-testid="stat-screentime-value"]', "fontFamily");
     check(Boolean(numFont?.includes("FamiljenGrotesk")), "숫자는 Familjen Grotesk", numFont);
     const titleFont = await page.getByText("12일째, 잘 버티고 있어요").evaluate((el) => getComputedStyle(el).fontFamily);
-    check(titleFont.includes("Pretendard-Regular"), "제목은 Pretendard 400 (굵게 하지 않는다)", titleFont);
+    check(titleFont.includes("Pretendard-SemiBold"), "제목은 Pretendard 600 (UIUX 실험 A안)", titleFont);
 
     const bars = await page.locator('[data-testid="week-bars"] > div').count();
     check(bars === 7, "주간 막대 7칸", `${bars}칸`);
